@@ -20,6 +20,10 @@ from rcac_mcp.token import ISSUER, AUDIENCE, ALGORITHM
 STATIC_DIR = Path(__file__).parent / "static"
 LOGO_PATH = STATIC_DIR / "purdue-logo.svg"
 
+# Base URL for constructing absolute URLs (icons, etc.)
+MCP_BASE_URL = os.environ.get('MCP_BASE_URL', '').rstrip('/')
+LOGO_URL = f"{MCP_BASE_URL}/static/purdue-logo.svg" if MCP_BASE_URL else "/static/purdue-logo.svg"
+
 __all__ = ['mcp', 'create_mcp_server']
 
 # Pre-computed digits of pi (first 100 decimal digits)
@@ -84,7 +88,7 @@ def create_mcp_server(auth_mode: str = 'none') -> FastMCP:
         auth=auth,
         icons=[
             Icon(
-                src="/static/purdue-logo.svg",
+                src=LOGO_URL,
                 mimeType="image/svg+xml",
             ),
         ],
