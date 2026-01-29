@@ -18,11 +18,11 @@ from rcac_mcp.token import ISSUER, AUDIENCE, ALGORITHM
 
 # Path to static files directory
 STATIC_DIR = Path(__file__).parent / "static"
-LOGO_PATH = STATIC_DIR / "purdue-logo.svg"
+ICON_PATH = STATIC_DIR / "purdue-favicon.ico"
 
 # Base URL for constructing absolute URLs (icons, etc.)
 MCP_BASE_URL = os.environ.get('MCP_BASE_URL', '').rstrip('/')
-LOGO_URL = f"{MCP_BASE_URL}/static/purdue-logo.svg" if MCP_BASE_URL else "/static/purdue-logo.svg"
+ICON_URL = f"{MCP_BASE_URL}/static/purdue-favicon.ico" if MCP_BASE_URL else "/static/purdue-favicon.ico"
 
 __all__ = ['mcp', 'create_mcp_server']
 
@@ -88,16 +88,16 @@ def create_mcp_server(auth_mode: str = 'none') -> FastMCP:
         auth=auth,
         icons=[
             Icon(
-                src=LOGO_URL,
-                mimeType="image/svg+xml",
+                src=ICON_URL,
+                mimeType="image/x-icon",
             ),
         ],
     )
 
-    # Serve the logo via custom route
-    @server.custom_route("/static/purdue-logo.svg", methods=["GET"])
-    async def serve_logo(request: Request) -> FileResponse:
-        return FileResponse(LOGO_PATH, media_type="image/svg+xml")
+    # Serve the icon via custom route
+    @server.custom_route("/static/purdue-favicon.ico", methods=["GET"])
+    async def serve_icon(request: Request) -> FileResponse:
+        return FileResponse(ICON_PATH, media_type="image/x-icon")
 
     # Register tools
     @server.tool
