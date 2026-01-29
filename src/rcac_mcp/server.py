@@ -5,12 +5,20 @@
 
 from __future__ import annotations
 from typing import Optional
+from pathlib import Path
 import os
 
 from fastmcp import FastMCP
 from fastmcp.server.auth.providers.jwt import JWTVerifier
+from mcp.types import Icon
+from starlette.requests import Request
+from starlette.responses import FileResponse
 
 from rcac_mcp.token import ISSUER, AUDIENCE, ALGORITHM
+
+# Path to static files directory
+STATIC_DIR = Path(__file__).parent / "static"
+LOGO_PATH = STATIC_DIR / "purdue-logo.svg"
 
 __all__ = ['mcp', 'create_mcp_server']
 
@@ -74,7 +82,18 @@ def create_mcp_server(auth_mode: str = 'none') -> FastMCP:
         Currently provides example mathematical tools for testing.
         """,
         auth=auth,
+        icons=[
+            Icon(
+                src="/static/purdue-logo.svg",
+                mimeType="image/svg+xml",
+            ),
+        ],
     )
+
+    # Serve the logo via custom route
+    @server.custom_route("/static/purdue-logo.svg", methods=["GET"])
+    async def serve_logo(request: Request) -> FileResponse:
+        return FileResponse(LOGO_PATH, media_type="image/svg+xml")
 
     # Register tools
     @server.tool
