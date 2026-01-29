@@ -15,13 +15,14 @@ AUDIENCE = 'rcac-mcp'
 ALGORITHM = 'HS256'
 
 
-def generate_token(secret: str, lifetime: int = 3600) -> str:
+def generate_token(secret: str, lifetime: int = 3600, subject: str | None = None) -> str:
     """
     Generate a JWT token for authenticating with the MCP server.
 
     Args:
         secret: The shared secret key for HS256 signing.
         lifetime: Token lifetime in seconds (default: 3600 = 1 hour).
+        subject: Optional subject identifier (username or user ID).
 
     Returns:
         Encoded JWT token string.
@@ -33,4 +34,6 @@ def generate_token(secret: str, lifetime: int = 3600) -> str:
         'iat': now,
         'exp': now + timedelta(seconds=lifetime),
     }
+    if subject:
+        payload['sub'] = subject
     return jwt.encode(payload, secret, algorithm=ALGORITHM)

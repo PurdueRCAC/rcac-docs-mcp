@@ -77,6 +77,7 @@ Options:
   -p, --port        PORT        Port number for HTTP/SSE (default: {DEFAULT_PORT}).
   -a, --auth        AUTH        Authentication mode: none, jwt, oidc (default: {DEFAULT_AUTH}).
       --generate-token          Generate a JWT token and exit (requires JWT_SECRET).
+      --sub         SUBJECT     Subject identifier for token (username or user ID).
       --lifetime    SECONDS     Token lifetime in seconds (default: {DEFAULT_LIFETIME}).
   -v, --version                 Show version and exit.
   -h, --help                    Show this message and exit.
@@ -119,6 +120,9 @@ class MCPServerApp(Application):
     generate_token_flag: bool = False
     interface.add_argument('--generate-token', action='store_true', dest='generate_token_flag')
 
+    subject: str | None = None
+    interface.add_argument('--sub', dest='subject', default=subject)
+
     lifetime: int = DEFAULT_LIFETIME
     interface.add_argument('--lifetime', type=int, default=lifetime)
 
@@ -139,7 +143,7 @@ class MCPServerApp(Application):
                 raise ValueError("JWT_SECRET environment variable required for token generation")
             if len(secret) < 32:
                 raise ValueError("JWT_SECRET must be at least 32 characters")
-            token = generate_token(secret, self.lifetime)
+            token = generate_token(secret, self.lifetime, self.subject)
             print(token)
             return
 
