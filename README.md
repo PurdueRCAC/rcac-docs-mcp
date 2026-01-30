@@ -2,21 +2,29 @@
 
 Purdue RCAC MCP Server: Enables agentic development with HPC clusters and storage services.
 
-## Installation
+## Quick Start (Desktop Clients)
 
-```bash
-uv sync
+For MCP-enabled desktop applications like Raycast, Claude Desktop, or Cursor, add this server
+to your MCP configuration:
+
+```json
+{
+  "mcpServers": {
+    "rcac": {
+      "command": "uvx",
+      "args": ["git+https://github.com/purduercac/rcac-mcp"]
+    }
+  }
+}
 ```
 
-## Usage
+This runs the server locally in `stdio` mode — no additional setup required.
 
-### Local Development (stdio)
+## Hosted HTTP Server
 
-```bash
-rcac-mcp
-```
+For a shared hosted instance with authentication:
 
-### HTTP Server
+### Basic HTTP Server
 
 ```bash
 rcac-mcp -t http -p 8000
@@ -28,13 +36,13 @@ rcac-mcp -t http -p 8000
 export JWT_SECRET="your-secret-key-at-least-32-characters"
 rcac-mcp -t http -a jwt
 
-# Generate a token for testing
+# Generate a token for clients
 rcac-mcp --generate-token --lifetime 86400
 ```
 
-## Docker Development with TLS
+### Docker Compose with TLS
 
-### Setup certificates with mkcert
+For production-like deployments with HTTPS:
 
 ```bash
 # Install mkcert if needed
@@ -47,21 +55,18 @@ mkcert -cert-file certs/cert.pem -key-file certs/key.pem mcp.rcac.dev localhost 
 
 # Add to /etc/hosts
 echo "127.0.0.1 mcp.rcac.dev" | sudo tee -a /etc/hosts
-```
 
-### Run with Docker Compose
-
-```bash
+# Run
 docker compose up
 ```
 
 The server will be available at `https://mcp.rcac.dev:8443`.
 
-### Generate a token
+## Development
 
 ```bash
-export JWT_SECRET="dev-secret-at-least-32-characters-long"
-rcac-mcp --generate-token
+uv sync
+rcac-mcp
 ```
 
 ## Available Tools

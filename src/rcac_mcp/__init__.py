@@ -3,32 +3,34 @@
 
 """RCAC MCP Server: Enables agentic development with HPC clusters and storage services."""
 
+
+# Type annotations
 from __future__ import annotations
-from typing import List
+from typing import List, Final
+
+# Standard libs
 import sys
 import os
 from functools import partial
 from importlib.metadata import version as get_version
 from platform import python_version, python_implementation
 
+# External libs
 from cmdkit.app import Application, exit_status
 from cmdkit.cli import Interface
 from cmdkit.logging import Logger, level_by_name, logging_styles
 
-from rcac_mcp.server import mcp, create_mcp_server
+# Internal libs
+from rcac_mcp.server import create_mcp_server
 from rcac_mcp.token import generate_token
 
-__all__ = ['mcp', 'main', 'MCPServerApp', '__version__']
-
-try:
-    __version__ = get_version('rcac-mcp')
-except Exception:
-    __version__ = '0.1.0'
-
+# Public interface
+__all__ = ['main', 'MCPServerApp', '__version__']
+__version__ = get_version('rcac-mcp')
 __website__ = 'https://github.com/purduercac/rcac-mcp'
 __description__ = 'MCP Server for Purdue RCAC: HPC clusters and storage services for AI agents.'
 
-
+# Global logger
 log = Logger.default(name=__name__, level=level_by_name['INFO'], **logging_styles['default'])
 
 
@@ -39,11 +41,12 @@ def print_exception(exc: Exception, status: int) -> int:
 
 
 # Default configuration values
-DEFAULT_HOST = 'localhost'
-DEFAULT_PORT = 8000
-DEFAULT_TRANSPORT = 'stdio'
-DEFAULT_AUTH = 'none'
-DEFAULT_LIFETIME = 3600
+DEFAULT_HOST: Final[str] = 'localhost'
+DEFAULT_PORT: Final[int] = 8000
+DEFAULT_TRANSPORT: Final[str] = 'stdio'
+DEFAULT_AUTH: Final[str] = 'none'
+DEFAULT_LIFETIME: Final[int] = 3600
+
 
 APP_NAME = 'rcac-mcp'
 APP_VERSION = f'RCAC MCP Server v{__version__} ({python_implementation()} {python_version()})'
@@ -102,6 +105,7 @@ class MCPServerApp(Application):
 
     interface = Interface(APP_NAME, APP_USAGE, APP_HELP)
     interface.add_argument('-v', '--version', action='version', version=APP_VERSION)
+    ALLOW_NOARGS = True  # Run application even when no arguments are given
 
     transport: str = DEFAULT_TRANSPORT
     interface.add_argument('-t', '--transport', default=transport,
@@ -136,27 +140,23 @@ class MCPServerApp(Application):
 
     def run(self) -> None:
         """Run the MCP server or generate token."""
-        # Handle token generation
+
         if self.generate_token_flag:
             secret = os.environ.get('JWT_SECRET')
             if not secret:
-                raise ValueError("JWT_SECRET environment variable required for token generation")
+                raise ValueError('JWT_SECRET environment variable required for token generation')
             if len(secret) < 32:
-                raise ValueError("JWT_SECRET must be at least 32 characters")
-            token = generate_token(secret, self.lifetime, self.subject)
-            print(token)
+                raise ValueError('JWT_SECRET must be at least 32 characters')
+            print(generate_token(secret, self.lifetime, self.subject))
             return
 
-        # Create server with auth
-        server = create_mcp_server(self.auth)
-
-        # Run with appropriate transport
+        mcp = create_mcp_server(self.auth)
         if self.transport == 'stdio':
-            server.run(transport='stdio')
+            mcp.run(transport='stdio')
         elif self.transport == 'sse':
-            server.run(transport='sse', host=self.host, port=self.port)
+            mcp.run(transport='sse', host=self.host, port=self.port)
         elif self.transport == 'http':
-            server.run(transport='streamable-http', host=self.host, port=self.port)
+            mcp.run(transport='streamable-http', host=self.host, port=self.port)
 
 
 def main(argv: List[str] | None = None) -> int:

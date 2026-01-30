@@ -3,16 +3,25 @@
 
 """JWT token generation for RCAC MCP Server."""
 
-from __future__ import annotations
 
-import jwt
+# Type annotations
+from __future__ import annotations
+from typing import Final
+
+# Standard libs
 from datetime import datetime, timezone, timedelta
 
-__all__ = ['generate_token']
+# External libs
+import jwt
 
-ISSUER = 'rcac-mcp'
-AUDIENCE = 'rcac-mcp'
-ALGORITHM = 'HS256'
+# Public interface
+__all__ = ['ISSUER', 'AUDIENCE', 'ALGORITHM', 'generate_token']
+
+
+# Constant claims
+ISSUER: Final[str] = 'rcac-mcp'
+AUDIENCE: Final[str] = 'rcac-mcp'
+ALGORITHM: Final[str] = 'HS256'
 
 
 def generate_token(secret: str, lifetime: int = 3600, subject: str | None = None) -> str:
