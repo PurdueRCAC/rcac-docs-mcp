@@ -64,7 +64,13 @@ SERVER_INSTRUCTIONS: Final[str] = """\
 RCAC MCP Server provides tools for interacting with Purdue's
 Research Computing resources and HPC clusters.
 
-Currently provides example mathematical tools for testing.\
+Available tools:
+- run_command: Execute shell commands
+- list_directory: List directory contents
+- read_file: Read file contents
+- write_file: Write content to files
+- upload_file: Upload files to the remote system
+- download_file: Download files from the remote system\
 """
 
 

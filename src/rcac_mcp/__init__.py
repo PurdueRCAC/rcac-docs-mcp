@@ -46,13 +46,15 @@ DEFAULT_PORT: Final[int] = 8000
 DEFAULT_TRANSPORT: Final[str] = 'stdio'
 DEFAULT_AUTH: Final[str] = 'none'
 DEFAULT_LIFETIME: Final[int] = 3600
+DEFAULT_EXEC_MODE: Final[str] = 'ssh'
 
 
 APP_NAME = 'rcac-mcp'
 APP_VERSION = f'RCAC MCP Server v{__version__} ({python_implementation()} {python_version()})'
 APP_USAGE = f"""\
 Usage:
-  {APP_NAME} [-h] [-v] [-t TRANSPORT] [-H HOST] [-p PORT] [-a AUTH] [--generate-token] [--lifetime SECONDS]
+  {APP_NAME} [-h] [-v] [-t TRANSPORT] [-H HOST] [-p PORT] [-a AUTH] [-e EXEC_MODE] [--ssh-host HOST]
+             [--generate-token] [--lifetime SECONDS]
 
   {__description__}\
 """
@@ -74,11 +76,18 @@ APP_HELP = f"""\
     jwt       JWT with symmetric key (HS256) - requires JWT_SECRET env var
     oidc      OIDC proxy - requires OIDC_* env vars
 
+  Execution Modes:
+    ssh       Execute commands via SSH (default for stdio)
+    local     Execute commands locally via $SHELL (default for http with auth=none)
+    delegate  Execute commands as authenticated user via sudo (http with auth)
+
 Options:
   -t, --transport   TRANSPORT   Transport protocol: stdio, sse, http (default: {DEFAULT_TRANSPORT}).
   -H, --host        HOST        Bind address for HTTP/SSE (default: {DEFAULT_HOST}).
   -p, --port        PORT        Port number for HTTP/SSE (default: {DEFAULT_PORT}).
   -a, --auth        AUTH        Authentication mode: none, jwt, oidc (default: {DEFAULT_AUTH}).
+  -e, --exec-mode   MODE        Execution mode: ssh, local, delegate (default: auto).
+      --ssh-host    HOST        SSH host to connect to (required for ssh mode).
       --generate-token          Generate a JWT token and exit (requires JWT_SECRET).
       --sub         SUBJECT     Subject identifier for token (username or user ID).
       --lifetime    SECONDS     Token lifetime in seconds (default: {DEFAULT_LIFETIME}).
@@ -91,12 +100,13 @@ Environment Variables:
   OIDC_CLIENT_ID      OAuth client ID (required for oidc auth).
   OIDC_CLIENT_SECRET  OAuth client secret (required for oidc auth).
   MCP_BASE_URL        Public URL of this server (required for oidc auth).
+  RCAC_SSH_HOST       Default SSH host (can be overridden with --ssh-host).
+  RCAC_USER_MAP       Path to user mapping file for delegate mode.
 
 Examples:
-  {APP_NAME}                              # Run with stdio transport, no auth
-  {APP_NAME} -t http -p 8080              # Run HTTP server on port 8080
-  {APP_NAME} -a jwt -t http               # Run with JWT auth over HTTP
-  {APP_NAME} --generate-token             # Generate a JWT token\
+  {APP_NAME} --ssh-host cluster.rcac.purdue.edu   # SSH to cluster (stdio)
+  {APP_NAME} -t http -e local                     # Local execution over HTTP
+  {APP_NAME} -t http -a jwt -e delegate           # Delegate to auth user\
 """
 
 
@@ -121,6 +131,13 @@ class MCPServerApp(Application):
     interface.add_argument('-a', '--auth', default=auth,
                            choices=['none', 'jwt', 'oidc'])
 
+    exec_mode: str | None = None
+    interface.add_argument('-e', '--exec-mode', default=exec_mode,
+                           choices=['ssh', 'local', 'delegate'])
+
+    ssh_host: str | None = None
+    interface.add_argument('--ssh-host', default=ssh_host)
+
     generate_token_flag: bool = False
     interface.add_argument('--generate-token', action='store_true', dest='generate_token_flag')
 
@@ -140,6 +157,9 @@ class MCPServerApp(Application):
 
     def run(self) -> None:
         """Run the MCP server or generate token."""
+        from rcac_mcp.context import set_executor
+        from rcac_mcp.executor.ssh import SSHExecutor
+        from rcac_mcp.executor.shell import LocalShellExecutor
 
         if self.generate_token_flag:
             secret = os.environ.get('JWT_SECRET')
@@ -150,13 +170,78 @@ class MCPServerApp(Application):
             print(generate_token(secret, self.lifetime, self.subject))
             return
 
-        mcp = create_mcp_server(self.auth)
+        # Determine execution mode
+        exec_mode = self._resolve_exec_mode()
+        log.info(f'Execution mode: {exec_mode}')
+
+        # Create and configure executor
+        executor = self._create_executor(exec_mode)
+        set_executor(executor)
+
+        # Open persistent connection for SSH mode
+        if exec_mode == 'ssh':
+            executor.open()
+            log.info(f'Connected to {executor.hostname}')
+
+        try:
+            mcp = create_mcp_server(self.auth)
+            if self.transport == 'stdio':
+                mcp.run(transport='stdio')
+            elif self.transport == 'sse':
+                mcp.run(transport='sse', host=self.host, port=self.port)
+            elif self.transport == 'http':
+                mcp.run(transport='streamable-http', host=self.host, port=self.port)
+        finally:
+            # Clean up executor
+            executor.close()
+
+    def _resolve_exec_mode(self) -> str:
+        """Determine execution mode from args or defaults."""
+        if self.exec_mode:
+            return self.exec_mode
+
+        # Auto-select based on transport and auth
         if self.transport == 'stdio':
-            mcp.run(transport='stdio')
-        elif self.transport == 'sse':
-            mcp.run(transport='sse', host=self.host, port=self.port)
-        elif self.transport == 'http':
-            mcp.run(transport='streamable-http', host=self.host, port=self.port)
+            return 'ssh'
+        elif self.auth == 'none':
+            return 'local'
+        else:
+            return 'delegate'
+
+    def _create_executor(self, exec_mode: str):
+        """Create executor based on mode."""
+        from rcac_mcp.executor.ssh import SSHExecutor
+        from rcac_mcp.executor.shell import LocalShellExecutor
+        from rcac_mcp.executor.delegate import DelegatingExecutor, load_user_map
+
+        if exec_mode == 'ssh':
+            ssh_host = self.ssh_host or os.environ.get('RCAC_SSH_HOST')
+            if not ssh_host:
+                raise ValueError(
+                    'SSH host required: use --ssh-host or set RCAC_SSH_HOST'
+                )
+            return SSHExecutor(ssh_host)
+
+        elif exec_mode == 'local':
+            return LocalShellExecutor()
+
+        elif exec_mode == 'delegate':
+            # For delegate mode, we need per-request executors
+            # This returns a factory-like setup; actual delegation happens per-request
+            user_map_path = os.environ.get('RCAC_USER_MAP')
+            if not user_map_path:
+                raise ValueError(
+                    'RCAC_USER_MAP environment variable required for delegate mode'
+                )
+            # Load user map at startup to validate it
+            load_user_map(user_map_path)
+            # For now, return a local executor as placeholder
+            # TODO: Integrate with FastMCP auth context for per-request delegation
+            log.warning('Delegate mode: using local executor (per-request delegation not yet implemented)')
+            return LocalShellExecutor()
+
+        else:
+            raise ValueError(f'Unknown exec mode: {exec_mode}')
 
 
 def main(argv: List[str] | None = None) -> int:
