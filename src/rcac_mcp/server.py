@@ -6,7 +6,7 @@
 
 # Type annotations
 from __future__ import annotations
-from typing import Dict, Optional, Final, Callable, Awaitable
+from typing import Dict, List, Optional, Final, Callable, Awaitable
 
 # Standard libs
 from pathlib import Path
@@ -74,9 +74,20 @@ Available tools:
 """
 
 
-def create_mcp_server(auth_mode: Optional[str] = None) -> FastMCP:
-    """Create and configure the MCP server."""
+def create_mcp_server(
+    auth_mode: Optional[str] = None,
+    middlewares: Optional[List] = None,
+) -> FastMCP:
+    """
+    Create and configure the MCP server.
 
+    Args:
+        auth_mode: Authentication mode ('none', 'jwt', 'oidc').
+        middlewares: Optional list of FastMCP Middleware instances to add.
+
+    Returns:
+        Configured FastMCP server instance.
+    """
     server = FastMCP(
         name='RCAC',
         instructions=SERVER_INSTRUCTIONS,
@@ -94,5 +105,10 @@ def create_mcp_server(auth_mode: Optional[str] = None) -> FastMCP:
 
     for tool in TOOL_REGISTRY:
         server.add_tool(tool)
+
+    # Add any provided middleware
+    if middlewares:
+        for middleware in middlewares:
+            server.add_middleware(middleware)
 
     return server

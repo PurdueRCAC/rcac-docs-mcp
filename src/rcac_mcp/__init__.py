@@ -174,17 +174,27 @@ class MCPServerApp(Application):
         exec_mode = self._resolve_exec_mode()
         log.info(f'Execution mode: {exec_mode}')
 
-        # Create and configure executor
-        executor = self._create_executor(exec_mode)
-        set_executor(executor)
+        # Create executor and middleware based on mode
+        executor = None
+        middlewares = []
 
-        # Open persistent connection for SSH mode
-        if exec_mode == 'ssh':
-            executor.open()
-            log.info(f'Connected to {executor.hostname}')
+        if exec_mode == 'delegate':
+            # Delegate mode uses per-request executors via middleware
+            from rcac_mcp.middleware import AuthExecutorMiddleware
+            middlewares.append(AuthExecutorMiddleware(self.auth))
+            log.info('Delegate mode: executor will be created per-request based on auth')
+        else:
+            # SSH and local modes use a shared executor
+            executor = self._create_executor(exec_mode)
+            set_executor(executor)
+
+            # Open persistent connection for SSH mode
+            if exec_mode == 'ssh':
+                executor.open()
+                log.info(f'Connected to {executor.hostname}')
 
         try:
-            mcp = create_mcp_server(self.auth)
+            mcp = create_mcp_server(self.auth, middlewares=middlewares)
             if self.transport == 'stdio':
                 mcp.run(transport='stdio')
             elif self.transport == 'sse':
@@ -192,8 +202,9 @@ class MCPServerApp(Application):
             elif self.transport == 'http':
                 mcp.run(transport='streamable-http', host=self.host, port=self.port)
         finally:
-            # Clean up executor
-            executor.close()
+            # Clean up executor (if any)
+            if executor:
+                executor.close()
 
     def _resolve_exec_mode(self) -> str:
         """Determine execution mode from args or defaults."""
@@ -223,21 +234,6 @@ class MCPServerApp(Application):
             return SSHExecutor(ssh_host)
 
         elif exec_mode == 'local':
-            return LocalShellExecutor()
-
-        elif exec_mode == 'delegate':
-            # For delegate mode, we need per-request executors
-            # This returns a factory-like setup; actual delegation happens per-request
-            user_map_path = os.environ.get('RCAC_USER_MAP')
-            if not user_map_path:
-                raise ValueError(
-                    'RCAC_USER_MAP environment variable required for delegate mode'
-                )
-            # Load user map at startup to validate it
-            load_user_map(user_map_path)
-            # For now, return a local executor as placeholder
-            # TODO: Integrate with FastMCP auth context for per-request delegation
-            log.warning('Delegate mode: using local executor (per-request delegation not yet implemented)')
             return LocalShellExecutor()
 
         else:
