@@ -59,32 +59,11 @@ class SSHExecutor:
         return self._host
 
     def open(self) -> None:
-        """Establish SSH connection with exponential backoff retry."""
+        """Establish SSH connection (single attempt, no retry)."""
         if self._conn is not None and self._conn.is_connected:
             return
-
-        delay = INITIAL_RECONNECT_DELAY
-        last_exception: Optional[Exception] = None
-
-        while delay <= MAX_RECONNECT_DELAY:
-            try:
-                self._conn = Connection(self._host, **self._connect_kwargs)
-                self._conn.open()
-                return
-            except (SSHException, OSError) as exc:
-                last_exception = exc
-                time.sleep(delay)
-                delay = min(delay * 2, MAX_RECONNECT_DELAY)
-
-        # Final attempt after max delay
-        try:
-            self._conn = Connection(self._host, **self._connect_kwargs)
-            self._conn.open()
-            return
-        except (SSHException, OSError) as exc:
-            raise ConnectionError(
-                f'Failed to connect to {self._host} after exponential backoff: {exc}'
-            ) from exc
+        self._conn = Connection(self._host, **self._connect_kwargs)
+        self._conn.open()
 
     def close(self) -> None:
         """Close the SSH connection."""
@@ -93,10 +72,33 @@ class SSHExecutor:
             self._conn = None
 
     def _ensure_connected(self) -> Connection:
-        """Ensure connection is open, reconnecting if necessary."""
-        if self._conn is None or not self._conn.is_connected:
+        """
+        Ensure connection is open, connecting with exponential backoff if necessary.
+
+        This method lazily establishes the SSH connection on first use and
+        automatically reconnects with retry logic if the connection is lost.
+        """
+        if self._conn is not None and self._conn.is_connected:
+            return self._conn
+
+        delay = INITIAL_RECONNECT_DELAY
+
+        while delay <= MAX_RECONNECT_DELAY:
+            try:
+                self.open()
+                return self._conn
+            except (SSHException, OSError):
+                time.sleep(delay)
+                delay = min(delay * 2, MAX_RECONNECT_DELAY)
+
+        # Final attempt after max delay
+        try:
             self.open()
-        return self._conn
+            return self._conn
+        except (SSHException, OSError) as exc:
+            raise ConnectionError(
+                f'Failed to connect to {self._host} after exponential backoff: {exc}'
+            ) from exc
 
     def run(
         self,

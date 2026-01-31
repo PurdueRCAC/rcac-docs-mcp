@@ -188,10 +188,8 @@ class MCPServerApp(Application):
             executor = self._create_executor(exec_mode)
             set_executor(executor)
 
-            # Open persistent connection for SSH mode
             if exec_mode == 'ssh':
-                executor.open()
-                log.info(f'Connected to {executor.hostname}')
+                log.info(f'SSH executor configured for {executor.hostname} (connection will be established on first command)')
 
         try:
             mcp = create_mcp_server(self.auth, middlewares=middlewares)
