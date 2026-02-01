@@ -77,7 +77,7 @@ APP_HELP = f"""\
     oidc      OIDC proxy - requires OIDC_* env vars
 
   Execution Modes:
-    ssh       Execute commands via SSH (default for stdio)
+    ssh       Execute commands via SSH (default for stdio, or when --ssh-host is set)
     local     Execute commands locally via $SHELL (default for http with auth=none)
     delegate  Execute commands as authenticated user via sudo (http with auth)
 
@@ -105,6 +105,7 @@ Environment Variables:
 
 Examples:
   {APP_NAME} --ssh-host cluster.rcac.purdue.edu   # SSH to cluster (stdio)
+  {APP_NAME} -t http --ssh-host cluster.edu       # HTTP server with SSH execution
   {APP_NAME} -t http -e local                     # Local execution over HTTP
   {APP_NAME} -t http -a jwt -e delegate           # Delegate to auth user\
 """
@@ -157,10 +158,6 @@ class MCPServerApp(Application):
 
     def run(self) -> None:
         """Run the MCP server or generate token."""
-        from rcac_mcp.context import set_executor
-        from rcac_mcp.executor.ssh import SSHExecutor
-        from rcac_mcp.executor.shell import LocalShellExecutor
-
         if self.generate_token_flag:
             secret = os.environ.get('JWT_SECRET')
             if not secret:
@@ -184,9 +181,10 @@ class MCPServerApp(Application):
             middlewares.append(AuthExecutorMiddleware(self.auth))
             log.info('Delegate mode: executor will be created per-request based on auth')
         else:
-            # SSH and local modes use a shared executor
+            # SSH and local modes use a shared executor via middleware
+            from rcac_mcp.middleware import SharedExecutorMiddleware
             executor = self._create_executor(exec_mode)
-            set_executor(executor)
+            middlewares.append(SharedExecutorMiddleware(executor))
 
             if exec_mode == 'ssh':
                 log.info(f'SSH executor configured for {executor.hostname} (connection will be established on first command)')
@@ -209,8 +207,11 @@ class MCPServerApp(Application):
         if self.exec_mode:
             return self.exec_mode
 
-        # Auto-select based on transport and auth
+        # Auto-select based on transport, auth, and ssh-host
         if self.transport == 'stdio':
+            return 'ssh'
+        elif self.ssh_host or os.environ.get('RCAC_SSH_HOST'):
+            # If SSH host is specified, use ssh mode regardless of transport
             return 'ssh'
         elif self.auth == 'none':
             return 'local'

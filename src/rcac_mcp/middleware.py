@@ -16,10 +16,42 @@ from fastmcp.server.dependencies import get_access_token
 
 # Internal libs
 from rcac_mcp.context import set_executor
+from rcac_mcp.executor import Executor
 from rcac_mcp.executor.delegate import DelegatingExecutor, load_user_map
 
 # Public interface
-__all__ = ['AuthExecutorMiddleware']
+__all__ = ['AuthExecutorMiddleware', 'SharedExecutorMiddleware']
+
+
+class SharedExecutorMiddleware(Middleware):
+    """
+    Middleware that sets a shared executor for all requests.
+
+    Used for SSH and local execution modes where a single executor
+    is shared across all requests.
+    """
+
+    _executor: Executor
+
+    def __init__(self, executor: Executor) -> None:
+        """
+        Initialize the middleware.
+
+        Args:
+            executor: The shared executor instance.
+        """
+        super().__init__()
+        self._executor = executor
+
+    async def on_call_tool(self, context: MiddlewareContext, call_next):
+        """
+        Set the shared executor for each tool call.
+
+        ContextVars are task-local, so we need to set the executor
+        for each request's async context.
+        """
+        set_executor(self._executor)
+        return await call_next(context)
 
 
 class AuthExecutorMiddleware(Middleware):
