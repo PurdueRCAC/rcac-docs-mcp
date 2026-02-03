@@ -64,13 +64,35 @@ SERVER_INSTRUCTIONS: Final[str] = """\
 RCAC MCP Server provides tools for interacting with Purdue's
 Research Computing resources and HPC clusters.
 
-Available tools:
+General Tools:
 - run_command: Execute shell commands
 - list_directory: List directory contents
 - read_file: Read file contents
 - write_file: Write content to files
 - upload_file: Upload files to the remote system
-- download_file: Download files from the remote system\
+- download_file: Download files from the remote system
+
+RCAC-Specific Tools:
+- myquota: Show storage spaces, usage, and quotas
+- jobinfo: Get detailed job information (RCAC)
+- jobcmd: Get the command submitted for a job
+- jobenv: Get environment variables for a job
+- jobscript: Get the full submission script for a job
+- showpartitions: Show available partitions and status
+- average_wait: Show queue wait time statistics
+
+Slurm Job Management:
+- sbatch: Submit a batch job (script path or content)
+- squeue: View the job queue (default: your jobs)
+- scancel: Cancel jobs by ID or filter
+- sacct: Query job accounting history
+
+Slurm Cluster Status:
+- sinfo: Show cluster and partition status
+- scontrol_show_job: Detailed job info from Slurm
+- scontrol_show_node: Detailed node info for diagnostics
+- slist: Show Slurm accounts and usage (RCAC)
+- sfeatures: Show node features/constraints (RCAC)\
 """
 
 

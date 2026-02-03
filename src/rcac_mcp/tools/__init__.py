@@ -30,3 +30,5 @@ def mcp_tool(func: Callable[..., Any]) -> Tool:
 from rcac_mcp.tools import shell  # noqa: E402, F401
 from rcac_mcp.tools import filesystem  # noqa: E402, F401
 from rcac_mcp.tools import transfer  # noqa: E402, F401
+from rcac_mcp.tools import rcac  # noqa: E402, F401
+from rcac_mcp.tools import slurm  # noqa: E402, F401
