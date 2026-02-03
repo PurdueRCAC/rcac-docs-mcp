@@ -132,3 +132,46 @@ RESOURCE_REGISTRY.append({
     'description': 'Cluster-specific context and guidelines loaded from /etc/agents.d/*.md',
     'handler': _cluster_context_resource,
 })
+
+
+def _storage_paths_resource() -> str:
+    """
+    User's resolved storage paths.
+
+    Returns the actual filesystem paths for all storage spaces the user
+    has access to. This provides immediate context about where data can
+    be read and written.
+
+    Returns:
+        Formatted text showing home, scratch, and depot paths with usage.
+    """
+    # Import here to avoid circular dependency
+    from rcac_mcp.tools.rcac import storage_paths
+
+    paths = storage_paths()
+
+    lines = [
+        'User Storage Paths:',
+        '',
+        f'Home: {paths.home.path}',
+        f'  Usage: {paths.home.size} / {paths.home.limit} ({paths.home.usage_percent})',
+        '',
+        f'Scratch: {paths.scratch.path}',
+        f'  Usage: {paths.scratch.size} / {paths.scratch.limit} ({paths.scratch.usage_percent})',
+        '',
+        f'Depot Spaces ({len(paths.depots)} available):',
+    ]
+
+    for depot in paths.depots:
+        lines.append(f'  - {depot.path}')
+        lines.append(f'    Usage: {depot.size} / {depot.limit} ({depot.usage_percent})')
+
+    return '\n'.join(lines)
+
+
+RESOURCE_REGISTRY.append({
+    'uri': 'rcac://storage',
+    'name': 'storage_paths',
+    'description': "User's resolved storage paths for home, scratch, and depot spaces",
+    'handler': _storage_paths_resource,
+})

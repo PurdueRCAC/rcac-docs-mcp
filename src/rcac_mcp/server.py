@@ -65,6 +65,17 @@ SERVER_INSTRUCTIONS: Final[str] = """\
 RCAC MCP Server provides tools for interacting with Purdue's
 Research Computing resources and HPC clusters.
 
+Storage Paths:
+When users reference "scratch", "depot", or "home" storage:
+- Home: /home/<user> or $HOME (25GB, private, for configs and small files)
+- Scratch: /scratch/<cluster>/<user> or $CLUSTER_SCRATCH (high-performance,
+  large but purged regularly - use for job I/O, not long-term storage).
+  Run `findscratch` to get the exact path.
+- Depot: /depot/<group> where <group> is the allocation name. Users may have
+  access to multiple depot spaces. Use the `myquota` tool to discover all
+  available depot paths - look for "depot" type entries in the output.
+- Use the `storage_paths` tool to resolve all storage locations at once.
+
 General Tools:
 - run_command: Execute shell commands
 - list_directory: List directory contents
@@ -74,6 +85,7 @@ General Tools:
 - download_file: Download files from the remote system
 
 RCAC-Specific Tools:
+- storage_paths: Get resolved paths for home, scratch, and depot spaces
 - myquota: Show storage spaces, usage, and quotas
 - jobinfo: Get detailed job information (RCAC)
 - jobcmd: Get the command submitted for a job
@@ -96,7 +108,8 @@ Slurm Cluster Status:
 - sfeatures: Show node features/constraints (RCAC)
 
 Resources:
-- rcac://context: Cluster-specific context loaded from /etc/agents.d/*.md\
+- rcac://context: Cluster-specific context loaded from /etc/agents.d/*.md
+- rcac://storage: User's resolved storage paths (home, scratch, depots)\
 """
 
 

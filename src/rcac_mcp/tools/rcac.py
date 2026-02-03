@@ -10,7 +10,8 @@ and queue statistics specific to Purdue's Research Computing clusters.
 
 # Type annotations
 from __future__ import annotations
-from typing import Optional
+from typing import Optional, List
+from dataclasses import dataclass
 
 # Internal libs
 from rcac_mcp.tools import mcp_tool
@@ -29,8 +30,17 @@ def myquota() -> str:
     Show storage spaces, usage, and quotas for the current user.
 
     Displays all storage locations the user has access to (home, scratch,
-    depot, etc.) along with current usage and quota limits. Use this to
-    discover where data can be read/written.
+    depot, etc.) along with current usage and quota limits. This is the
+    authoritative way to discover what storage a user can access.
+
+    The output shows:
+    - Type: 'home', 'scratch', or 'depot'
+    - Location: username (for home/scratch) or group name (for depot)
+
+    Actual paths are:
+    - home: /home/<location>
+    - scratch: /scratch/<cluster>/<location> (or use $CLUSTER_SCRATCH)
+    - depot: /depot/<location>
 
     Returns:
         Storage quota information showing type, location, size, limit,
@@ -217,3 +227,144 @@ def average_wait(
         raise RuntimeError(f'Failed to get wait time stats: {result.stderr}')
 
     return result.stdout
+
+
+@dataclass
+class StorageSpace:
+    """Information about a storage space."""
+
+    type: str
+    """Storage type: 'home', 'scratch', or 'depot'."""
+
+    name: str
+    """Location name from myquota (username or group name)."""
+
+    path: str
+    """Full filesystem path to the storage space."""
+
+    size: str
+    """Current usage (e.g., '14.6GB')."""
+
+    limit: str
+    """Quota limit (e.g., '25.0GB')."""
+
+    usage_percent: str
+    """Usage as percentage (e.g., '58.6%')."""
+
+
+@dataclass
+class StoragePaths:
+    """Resolved storage paths for the current user."""
+
+    home: StorageSpace
+    """User's home directory."""
+
+    scratch: StorageSpace
+    """User's scratch space."""
+
+    depots: List[StorageSpace]
+    """List of depot spaces the user has access to."""
+
+
+def _parse_myquota_output(output: str, cluster: str) -> StoragePaths:
+    """
+    Parse myquota output into structured StoragePaths.
+
+    Args:
+        output: Raw myquota command output.
+        cluster: Cluster name for scratch path resolution.
+
+    Returns:
+        StoragePaths with resolved home, scratch, and depot spaces.
+    """
+    home = None
+    scratch = None
+    depots: List[StorageSpace] = []
+
+    for line in output.strip().split('\n'):
+        # Skip header lines
+        if not line or line.startswith('Type') or line.startswith('==='):
+            continue
+
+        parts = line.split()
+        if len(parts) < 6:
+            continue
+
+        storage_type = parts[0]
+        location = parts[1]
+        size = parts[2]
+        limit = parts[3]
+        usage_pct = parts[4]
+
+        if storage_type == 'home':
+            home = StorageSpace(
+                type='home',
+                name=location,
+                path=f'/home/{location}',
+                size=size,
+                limit=limit,
+                usage_percent=usage_pct,
+            )
+        elif storage_type == 'scratch':
+            scratch = StorageSpace(
+                type='scratch',
+                name=location,
+                path=f'/scratch/{cluster}/{location}',
+                size=size,
+                limit=limit,
+                usage_percent=usage_pct,
+            )
+        elif storage_type == 'depot':
+            depots.append(StorageSpace(
+                type='depot',
+                name=location,
+                path=f'/depot/{location}',
+                size=size,
+                limit=limit,
+                usage_percent=usage_pct,
+            ))
+
+    if home is None:
+        raise RuntimeError('No home directory found in myquota output')
+    if scratch is None:
+        raise RuntimeError('No scratch space found in myquota output')
+
+    return StoragePaths(home=home, scratch=scratch, depots=depots)
+
+
+@mcp_tool
+def storage_paths() -> StoragePaths:
+    """
+    Get resolved storage paths for the current user.
+
+    Returns the actual filesystem paths for all storage spaces the user
+    has access to, including home, scratch, and all depot allocations.
+    This is the recommended way to discover storage locations when a user
+    mentions "scratch", "depot", or "home".
+
+    Returns:
+        StoragePaths object with:
+        - home: User's home directory (/home/<user>)
+        - scratch: User's scratch space (/scratch/<cluster>/<user>)
+        - depots: List of depot spaces (/depot/<group>) the user can access
+
+    Examples:
+        storage_paths()
+    """
+    executor = get_executor()
+
+    # Get cluster name for scratch path
+    cluster_result = executor.run('echo $CLUSTER')
+    if cluster_result.exit_code != 0 or not cluster_result.stdout.strip():
+        # Fallback: extract from hostname
+        hostname_result = executor.run('hostname -s')
+        cluster = hostname_result.stdout.strip().rstrip('0123456789')
+    else:
+        cluster = cluster_result.stdout.strip()
+
+    # Get myquota output
+    quota_result = executor.run('myquota')
+    if quota_result.exit_code != 0:
+        raise RuntimeError(f'Failed to get quota info: {quota_result.stderr}')
+
+    return _parse_myquota_output(quota_result.stdout, cluster)
