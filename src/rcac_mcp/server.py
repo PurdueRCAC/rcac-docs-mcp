@@ -132,14 +132,13 @@ def create_mcp_server(
     for tool in TOOL_REGISTRY:
         server.add_tool(tool)
 
-    # Register resources
+    # Register resources using the @resource decorator approach
     for resource in RESOURCE_REGISTRY:
-        server.add_resource_fn(
-            fn=resource['handler'],
-            uri=resource['uri'],
+        server.resource(
+            resource['uri'],
             name=resource['name'],
             description=resource['description'],
-        )
+        )(resource['handler'])
 
     # Add any provided middleware
     if middlewares:
