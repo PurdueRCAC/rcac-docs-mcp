@@ -266,13 +266,13 @@ class StoragePaths:
     """List of depot spaces the user has access to."""
 
 
-def _parse_myquota_output(output: str, cluster: str) -> StoragePaths:
+def _parse_myquota_output(output: str, scratch_path: str) -> StoragePaths:
     """
     Parse myquota output into structured StoragePaths.
 
     Args:
         output: Raw myquota command output.
-        cluster: Cluster name for scratch path resolution.
+        scratch_path: Full scratch path from findscratch (e.g., /scratch/gautschi/glentner).
 
     Returns:
         StoragePaths with resolved home, scratch, and depot spaces.
@@ -306,10 +306,11 @@ def _parse_myquota_output(output: str, cluster: str) -> StoragePaths:
                 usage_percent=usage_pct,
             )
         elif storage_type == 'scratch':
+            # Use the authoritative scratch path from findscratch
             scratch = StorageSpace(
                 type='scratch',
                 name=location,
-                path=f'/scratch/{cluster}/{location}',
+                path=scratch_path,
                 size=size,
                 limit=limit,
                 usage_percent=usage_pct,
@@ -353,18 +354,16 @@ def storage_paths() -> StoragePaths:
     """
     executor = get_executor()
 
-    # Get cluster name for scratch path
-    cluster_result = executor.run('echo $CLUSTER')
-    if cluster_result.exit_code != 0 or not cluster_result.stdout.strip():
-        # Fallback: extract from hostname
-        hostname_result = executor.run('hostname -s')
-        cluster = hostname_result.stdout.strip().rstrip('0123456789')
-    else:
-        cluster = cluster_result.stdout.strip()
+    # Get the actual scratch path using findscratch (authoritative source)
+    # This returns the full path like /scratch/gautschi/glentner
+    scratch_result = executor.run('findscratch')
+    if scratch_result.exit_code != 0 or not scratch_result.stdout.strip():
+        raise RuntimeError(f'Failed to get scratch path: {scratch_result.stderr}')
+    scratch_path = scratch_result.stdout.strip()
 
     # Get myquota output
     quota_result = executor.run('myquota')
     if quota_result.exit_code != 0:
         raise RuntimeError(f'Failed to get quota info: {quota_result.stderr}')
 
-    return _parse_myquota_output(quota_result.stdout, cluster)
+    return _parse_myquota_output(quota_result.stdout, scratch_path)
