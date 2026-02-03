@@ -187,7 +187,7 @@ class MCPServerApp(Application):
             middlewares.append(SharedExecutorMiddleware(executor))
 
             if exec_mode == 'ssh':
-                log.info(f'SSH executor configured for {executor.hostname} (connection will be established on first command)')
+                log.info(f'SSH connection established to {executor.hostname}')
 
         try:
             mcp = create_mcp_server(self.auth, middlewares=middlewares)

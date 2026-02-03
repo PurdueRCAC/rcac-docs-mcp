@@ -42,7 +42,7 @@ class SSHExecutor:
 
     def __init__(self, host: str, **connect_kwargs) -> None:
         """
-        Initialize SSH executor.
+        Initialize SSH executor and establish connection.
 
         Args:
             host: Hostname or SSH config alias to connect to.
@@ -52,6 +52,8 @@ class SSHExecutor:
         self._host = host
         self._conn = None
         self._connect_kwargs = connect_kwargs
+        # Establish connection immediately
+        self.open()
 
     @property
     def hostname(self) -> str:

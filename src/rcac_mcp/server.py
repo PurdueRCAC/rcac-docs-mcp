@@ -20,6 +20,7 @@ from starlette.responses import Response, FileResponse
 # Internal libs
 from rcac_mcp.auth import AUTH_MODES
 from rcac_mcp.tools import TOOL_REGISTRY
+from rcac_mcp.resources import RESOURCE_REGISTRY
 
 # Public interface
 __all__ = [
@@ -92,7 +93,10 @@ Slurm Cluster Status:
 - scontrol_show_job: Detailed job info from Slurm
 - scontrol_show_node: Detailed node info for diagnostics
 - slist: Show Slurm accounts and usage (RCAC)
-- sfeatures: Show node features/constraints (RCAC)\
+- sfeatures: Show node features/constraints (RCAC)
+
+Resources:
+- rcac://context: Cluster-specific context loaded from /etc/agents.d/*.md\
 """
 
 
@@ -127,6 +131,15 @@ def create_mcp_server(
 
     for tool in TOOL_REGISTRY:
         server.add_tool(tool)
+
+    # Register resources
+    for resource in RESOURCE_REGISTRY:
+        server.add_resource_fn(
+            fn=resource['handler'],
+            uri=resource['uri'],
+            name=resource['name'],
+            description=resource['description'],
+        )
 
     # Add any provided middleware
     if middlewares:

@@ -1,0 +1,134 @@
+# SPDX-FileCopyrightText: 2025 Purdue University
+# SPDX-License-Identifier: MIT
+
+"""MCP resources for cluster context and configuration.
+
+Resources provide read-only access to data that can be used as context
+for LLM interactions. The primary resource is cluster_context which
+loads markdown files from /etc/agents.d/ on the remote cluster.
+"""
+
+# Type annotations
+from __future__ import annotations
+from typing import Optional
+
+# Internal libs
+from rcac_mcp.context import get_executor
+
+# Public interface
+__all__ = ['RESOURCE_REGISTRY', 'load_cluster_context', 'get_cached_context']
+
+
+# Cache for cluster context (loaded once per connection)
+_cluster_context_cache: dict[str, str] = {}
+
+
+def load_cluster_context(executor) -> str:
+    """
+    Load context files from /etc/agents.d/*.md on the remote cluster.
+
+    Files are concatenated in sorted order with headers indicating
+    the source file. Empty result if directory doesn't exist or
+    contains no .md files.
+
+    Args:
+        executor: The executor to use for loading context.
+
+    Returns:
+        Concatenated markdown content from all context files.
+    """
+    hostname = executor.hostname
+
+    # Check cache first
+    if hostname in _cluster_context_cache:
+        return _cluster_context_cache[hostname]
+
+    # Find all .md files in /etc/agents.d/
+    find_result = executor.run(
+        'find /etc/agents.d -maxdepth 1 -name "*.md" -type f 2>/dev/null | sort'
+    )
+
+    if find_result.exit_code != 0 or not find_result.stdout.strip():
+        # Directory doesn't exist or no files found
+        _cluster_context_cache[hostname] = ''
+        return ''
+
+    files = find_result.stdout.strip().split('\n')
+    context_parts = []
+
+    for filepath in files:
+        if not filepath:
+            continue
+
+        # Read file content
+        cat_result = executor.run(f'cat {filepath}')
+        if cat_result.exit_code == 0 and cat_result.stdout.strip():
+            # Extract filename for header
+            filename = filepath.split('/')[-1]
+            context_parts.append(f'<!-- Source: {filename} -->\n{cat_result.stdout.strip()}')
+
+    context = '\n\n'.join(context_parts)
+    _cluster_context_cache[hostname] = context
+    return context
+
+
+def get_cached_context(hostname: str) -> Optional[str]:
+    """
+    Get cached context for a hostname if available.
+
+    Args:
+        hostname: The cluster hostname.
+
+    Returns:
+        Cached context string, or None if not cached.
+    """
+    return _cluster_context_cache.get(hostname)
+
+
+def clear_context_cache(hostname: Optional[str] = None) -> None:
+    """
+    Clear the context cache.
+
+    Args:
+        hostname: Specific hostname to clear, or None to clear all.
+    """
+    if hostname:
+        _cluster_context_cache.pop(hostname, None)
+    else:
+        _cluster_context_cache.clear()
+
+
+# Resource registry for server to register
+# Each entry is (uri, name, description, handler_function)
+RESOURCE_REGISTRY = []
+
+
+def _cluster_context_resource() -> str:
+    """
+    Cluster-specific context and guidelines for AI agents.
+
+    This resource contains markdown documentation loaded from
+    /etc/agents.d/*.md on the connected cluster. It provides
+    cluster-specific information such as:
+
+    - Available software modules and recommended versions
+    - Cluster-specific policies and best practices
+    - Storage paths and quota information
+    - Partition configurations and job limits
+    - Any other guidance for AI agents working on this cluster
+
+    Returns:
+        Markdown content with cluster-specific context, or empty
+        string if no context files are available.
+    """
+    executor = get_executor()
+    return load_cluster_context(executor)
+
+
+# Register the resource
+RESOURCE_REGISTRY.append({
+    'uri': 'rcac://context',
+    'name': 'cluster_context',
+    'description': 'Cluster-specific context and guidelines loaded from /etc/agents.d/*.md',
+    'handler': _cluster_context_resource,
+})
