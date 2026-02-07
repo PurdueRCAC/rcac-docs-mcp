@@ -4,7 +4,7 @@ plan_id: bb88ff3d-7742-44f5-bfbb-6cece6050034
 status: approved
 branch: wip
 docs_repo: ../RCAC-Docs
-current_phase: 1
+current_phase: 2
 last_updated: "2026-02-07"
 decisions:
   architecture: local-to-mcp-process
@@ -100,20 +100,20 @@ src/rcac_mcp/
 ## Implementation Phases
 
 ### Phase 1: Schema and Database Layer
-- [ ] Create `src/rcac_mcp/docs/__init__.py` with public API exports
-- [ ] Create `src/rcac_mcp/docs/schema.sql` with full DDL (documents, chunks, chunks_fts, triggers, index)
-- [ ] Create `src/rcac_mcp/docs/database.py` with DocsDatabase class:
-  - [ ] `__init__(db_path, read_only=False)` — open/create connection
-  - [ ] `create_schema()` — execute schema.sql
-  - [ ] `upsert_document(path, title, category, content, source_hash)` — insert/update doc + chunks
-  - [ ] `remove_document(path)` — delete doc and cascading chunks
-  - [ ] `get_source_hash(path)` — for incremental checks
-  - [ ] `search(query, category=None, limit=20)` — FTS5 BM25-ranked search with snippet()
-  - [ ] `load_document(path)` — return full document content
-  - [ ] `stats()` — document/chunk counts
-  - [ ] `close()` — cleanup
-- [ ] Add `pyyaml` and `jinja2` to pyproject.toml dependencies
-- [ ] Verify schema works: quick smoke test creating an in-memory DB
+- [x] Create `src/rcac_mcp/docs/__init__.py` with public API exports
+- [x] Create `src/rcac_mcp/docs/schema.sql` with full DDL (documents, chunks, chunks_fts, triggers, index)
+- [x] Create `src/rcac_mcp/docs/database.py` with DocsDatabase class:
+  - [x] `__init__(db_path, read_only=False)` — open/create connection
+  - [x] `create_schema()` — execute schema.sql
+  - [x] `upsert_document(path, title, category, content, source_hash)` — insert/update doc + chunks
+  - [x] `remove_document(path)` — delete doc and cascading chunks
+  - [x] `get_source_hash(path)` — for incremental checks
+  - [x] `search(query, category=None, limit=20)` — FTS5 BM25-ranked search with snippet()
+  - [x] `load_document(path)` — return full document content
+  - [x] `stats()` — document/chunk counts
+  - [x] `close()` — cleanup
+- [x] Add `pyyaml` and `jinja2` to pyproject.toml dependencies
+- [x] Verify schema works: quick smoke test creating an in-memory DB
 
 ### Phase 2: Markdown Parser and Indexer
 - [ ] Create `src/rcac_mcp/docs/indexer.py` with DocsIndexer class:
