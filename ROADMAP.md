@@ -4,7 +4,7 @@ plan_id: bb88ff3d-7742-44f5-bfbb-6cece6050034
 status: approved
 branch: wip
 docs_repo: ../RCAC-Docs
-current_phase: 5
+current_phase: 6
 last_updated: "2026-02-07"
 decisions:
   architecture: local-to-mcp-process
@@ -149,10 +149,10 @@ src/rcac_mcp/
 - [x] Test: `rcac-mcp --index-docs --docs-path ../RCAC-Docs`
 
 ### Phase 5: Server Instructions and Agent Guidance
-- [ ] Update SERVER_INSTRUCTIONS in server.py with doc search tool descriptions
-- [ ] Add agent guidance: "Before advising on storage, jobs, or software, use doc_search"
-- [ ] Update APP_HELP with --index-docs documentation
-- [ ] Review INSTRUCTIONS.md for consistency with new capabilities
+- [x] Update SERVER_INSTRUCTIONS in server.py with doc search tool descriptions
+- [x] Add agent guidance: "Before advising on storage, jobs, or software, use doc_search"
+- [x] Update APP_HELP with --index-docs documentation
+- [x] Review INSTRUCTIONS.md for consistency with new capabilities
 
 ### Phase 6: Validation and Polish
 - [ ] Run full index build against RCAC-Docs repo, verify document/chunk counts

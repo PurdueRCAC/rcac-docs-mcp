@@ -65,6 +65,12 @@ SERVER_INSTRUCTIONS: Final[str] = """\
 RCAC MCP Server provides tools for interacting with Purdue's
 Research Computing resources and HPC clusters.
 
+IMPORTANT — Documentation Search:
+Before advising users on storage policies, job submission, software
+usage, or any RCAC-specific topic, use `doc_search` to check the
+official RCAC documentation. This prevents outdated or incorrect advice.
+After finding a relevant result, use `doc_load` to read the full page.
+
 Storage Paths:
 When users reference "scratch", "depot", or "home" storage:
 - Home: /home/<user> or $HOME (25GB, private, for configs and small files)
@@ -106,6 +112,15 @@ Slurm Cluster Status:
 - scontrol_show_node: Detailed node info for diagnostics
 - slist: Show Slurm accounts and usage (RCAC)
 - sfeatures: Show node features/constraints (RCAC)
+
+Documentation Search:
+- doc_search: Search RCAC documentation (user guides, software catalog,
+  datasets, blog posts, workshops). Supports FTS5 query syntax with
+  optional category filter. Use this to find relevant policies, guides,
+  and best practices before answering questions.
+- doc_load: Load the full content of a documentation page by its path
+  (as shown in doc_search results). Use after identifying a relevant
+  document to read it in full.
 
 Resources:
 - rcac://context: Cluster-specific context loaded from /etc/agents.d/*.md
