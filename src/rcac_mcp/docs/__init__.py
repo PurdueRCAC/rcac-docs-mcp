@@ -9,7 +9,8 @@ authoritative docs before advising users.
 """
 
 # Public interface
-__all__ = ['DocsDatabase', 'DEFAULT_DB_PATH']
+__all__ = ['DocsDatabase', 'DocsIndexer', 'DEFAULT_DB_PATH']
 
 # Re-exports
 from rcac_mcp.docs.database import DocsDatabase, DEFAULT_DB_PATH
+from rcac_mcp.docs.indexer import DocsIndexer

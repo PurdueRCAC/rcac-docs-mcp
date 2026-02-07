@@ -4,7 +4,7 @@ plan_id: bb88ff3d-7742-44f5-bfbb-6cece6050034
 status: approved
 branch: wip
 docs_repo: ../RCAC-Docs
-current_phase: 2
+current_phase: 3
 last_updated: "2026-02-07"
 decisions:
   architecture: local-to-mcp-process
@@ -116,20 +116,20 @@ src/rcac_mcp/
 - [x] Verify schema works: quick smoke test creating an in-memory DB
 
 ### Phase 2: Markdown Parser and Indexer
-- [ ] Create `src/rcac_mcp/docs/indexer.py` with DocsIndexer class:
-  - [ ] `__init__(docs_repo_root)` — validate repo structure (main.py, mkdocs.yml, docs/)
-  - [ ] `_load_mkdocs_extra()` — parse mkdocs.yml, extract `extra:` vars
-  - [ ] `_load_macros()` — dynamically load main.py macro functions via define_env pattern
-  - [ ] `_resolve_snippets(content, base_path)` — expand all --8<-- directives
-  - [ ] `_render_jinja2(content, frontmatter)` — render templates with full context
-  - [ ] `_parse_frontmatter(raw)` — split YAML frontmatter from body, return (metadata, body)
-  - [ ] `_extract_title(metadata, body)` — from frontmatter title, first # heading, or filename
-  - [ ] `_derive_category(rel_path)` — from top-level directory path
-  - [ ] `_chunk_by_h2(content)` — split on ## boundaries, return list of (heading, content) tuples
-  - [ ] `_should_skip(rel_path)` — skip snippets/, assets/, stylesheets/, empty files
-  - [ ] `build(db_path)` — main entry point: walk, parse, resolve, chunk, upsert, prune stale docs
-- [ ] Test snippet resolution against real RCAC-Docs files (running_jobs_python.md, etc.)
-- [ ] Test Jinja2 rendering against docs with {{ resource }}, {{ cluster }}, macro calls
+- [x] Create `src/rcac_mcp/docs/indexer.py` with DocsIndexer class:
+  - [x] `__init__(docs_repo_root)` — validate repo structure (main.py, mkdocs.yml, docs/)
+  - [x] `_load_mkdocs_extra()` — parse mkdocs.yml, extract `extra:` vars
+  - [x] `_load_macros()` — dynamically load main.py macro functions via define_env pattern
+  - [x] `_resolve_snippets(content, base_path)` — expand all --8<-- directives
+  - [x] `_render_jinja2(content, frontmatter)` — render templates with full context
+  - [x] `_parse_frontmatter(raw)` — split YAML frontmatter from body, return (metadata, body)
+  - [x] `_extract_title(metadata, body)` — from frontmatter title, first # heading, or filename
+  - [x] `_derive_category(rel_path)` — from top-level directory path
+  - [x] `_chunk_by_h2(content)` — split on ## boundaries, return list of (heading, content) tuples
+  - [x] `_should_skip(rel_path)` — skip snippets/, assets/, stylesheets/, empty files
+  - [x] `build(db_path)` — main entry point: walk, parse, resolve, chunk, upsert, prune stale docs
+- [x] Test snippet resolution against real RCAC-Docs files (running_jobs_python.md, etc.)
+- [x] Test Jinja2 rendering against docs with {{ resource }}, {{ cluster }}, macro calls
 
 ### Phase 3: MCP Tools
 - [ ] Create `src/rcac_mcp/tools/docs.py`:
