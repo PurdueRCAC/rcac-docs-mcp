@@ -4,7 +4,7 @@ plan_id: bb88ff3d-7742-44f5-bfbb-6cece6050034
 status: approved
 branch: wip
 docs_repo: ../RCAC-Docs
-current_phase: 3
+current_phase: 4
 last_updated: "2026-02-07"
 decisions:
   architecture: local-to-mcp-process
@@ -132,13 +132,13 @@ src/rcac_mcp/
 - [x] Test Jinja2 rendering against docs with {{ resource }}, {{ cluster }}, macro calls
 
 ### Phase 3: MCP Tools
-- [ ] Create `src/rcac_mcp/tools/docs.py`:
-  - [ ] `doc_search(query, category=None)` — FTS5 search, return formatted ranked results
-  - [ ] `doc_load(path)` — return full document markdown by relative path
-  - [ ] Handle missing docs.db gracefully (return helpful message)
-  - [ ] Module-level DB path resolution (RCAC_DOCS_DB env var → ~/.config/rcac-mcp/docs.db)
-- [ ] Register docs tool module in `src/rcac_mcp/tools/__init__.py`
-- [ ] Verify tools appear in TOOL_REGISTRY when imported
+- [x] Create `src/rcac_mcp/tools/docs.py`:
+  - [x] `doc_search(query, category=None)` — FTS5 search, return formatted ranked results
+  - [x] `doc_load(path)` — return full document markdown by relative path
+  - [x] Handle missing docs.db gracefully (return helpful message)
+  - [x] Module-level DB path resolution (RCAC_DOCS_DB env var → ~/.config/rcac-mcp/docs.db)
+- [x] Register docs tool module in `src/rcac_mcp/tools/__init__.py`
+- [x] Verify tools appear in TOOL_REGISTRY when imported
 
 ### Phase 4: CLI Integration
 - [ ] Add `--index-docs` flag to MCPServerApp
