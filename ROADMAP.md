@@ -4,7 +4,7 @@ plan_id: bb88ff3d-7742-44f5-bfbb-6cece6050034
 status: approved
 branch: wip
 docs_repo: ../RCAC-Docs
-current_phase: 4
+current_phase: 5
 last_updated: "2026-02-07"
 decisions:
   architecture: local-to-mcp-process
@@ -141,12 +141,12 @@ src/rcac_mcp/
 - [x] Verify tools appear in TOOL_REGISTRY when imported
 
 ### Phase 4: CLI Integration
-- [ ] Add `--index-docs` flag to MCPServerApp
-- [ ] Add `--docs-path` argument to MCPServerApp
-- [ ] Add `--docs-output` argument with default `~/.config/rcac-mcp/docs.db`
-- [ ] Implement index-docs flow in MCPServerApp.run(): detect flag, run indexer, print summary, exit
-- [ ] Create ~/.config/rcac-mcp/ directory if it doesn't exist
-- [ ] Test: `rcac-mcp --index-docs --docs-path ../RCAC-Docs`
+- [x] Add `--index-docs` flag to MCPServerApp
+- [x] Add `--docs-path` argument to MCPServerApp
+- [x] Add `--docs-output` argument with default `~/.config/rcac-mcp/docs.db`
+- [x] Implement index-docs flow in MCPServerApp.run(): detect flag, run indexer, print summary, exit
+- [x] Create ~/.config/rcac-mcp/ directory if it doesn't exist
+- [x] Test: `rcac-mcp --index-docs --docs-path ../RCAC-Docs`
 
 ### Phase 5: Server Instructions and Agent Guidance
 - [ ] Update SERVER_INSTRUCTIONS in server.py with doc search tool descriptions
