@@ -1,11 +1,11 @@
 ---
 feature: rcac-docs-search-index
 plan_id: bb88ff3d-7742-44f5-bfbb-6cece6050034
-status: approved
+status: complete
 branch: wip
 docs_repo: ../RCAC-Docs
 current_phase: 6
-last_updated: "2026-02-07"
+last_updated: "2026-02-08"
 decisions:
   architecture: local-to-mcp-process
   cli_approach: flags-on-existing-app
@@ -155,14 +155,16 @@ src/rcac_mcp/
 - [x] Review INSTRUCTIONS.md for consistency with new capabilities
 
 ### Phase 6: Validation and Polish
-- [ ] Run full index build against RCAC-Docs repo, verify document/chunk counts
-- [ ] Test doc_search with representative queries (scratch purge, conda vs anaconda, GPU jobs, etc.)
-- [ ] Test doc_load with various document paths
-- [ ] Test incremental update (re-run indexer, verify skipped unchanged files)
-- [ ] Test stale document removal (delete a doc, re-run indexer)
-- [ ] Verify server starts cleanly with and without docs.db present
-- [ ] Run any existing tests (pytest), ensure nothing is broken
-- [ ] Final review of all new code for consistency with project patterns
+- [x] Run full index build against RCAC-Docs repo, verify document/chunk counts
+- [x] Test doc_search with representative queries (scratch purge, conda vs anaconda, GPU jobs, etc.)
+- [x] Test doc_load with various document paths
+- [x] Test incremental update (re-run indexer, verify skipped unchanged files)
+- [x] Test stale document removal (delete a doc, re-run indexer)
+- [x] Verify server starts cleanly with and without docs.db present
+- [x] Run any existing tests (pytest), ensure nothing is broken
+- [x] Final review of all new code for consistency with project patterns
+- [x] Add RCAC-Docs as git submodule at tests/fixtures/RCAC-Docs
+- [x] Comprehensive test suite: 72 tests (database, indexer, tools, CLI)
 
 ---
 
