@@ -1,190 +1,198 @@
 ---
-feature: rcac-docs-search-index
-plan_id: bb88ff3d-7742-44f5-bfbb-6cece6050034
-status: complete
+project: rcac-docs-mcp
+feature: docs-only-refactor
+plan_id: 90ac50ab-77f6-4a6e-811c-21b42630de21
 branch: wip
-docs_repo: ../RCAC-Docs
-current_phase: 6
-last_updated: "2026-02-08"
+current_stage: 1
+stages_completed:
+  - "0"
+last_updated: "2026-06-24"
 decisions:
-  architecture: local-to-mcp-process
-  cli_approach: flags-on-existing-app
-  db_default_path: "~/.config/rcac-mcp/docs.db"
+  rename: full            # rcac_mcp -> rcac_docs_mcp; rcac-mcp -> rcac-docs-mcp
+  indexer_subpackage: index/   # was docs/
+  tools_layout: single-tools.py   # collapse tools/ package
+  auth: none             # strip JWT/OIDC; straight FastMCP
+  transports:            # drop sse
+    - stdio
+    - http
+  db_default: "~/.config/rcac-docs-mcp/docs.db"
   db_env_override: RCAC_DOCS_DB
-  docs_path_target: repo-root  # not docs/ subdirectory
-  snippet_resolution: full  # resolve --8<-- and Jinja2 at index time
-  skip_dirs:
-    - snippets
-    - assets
-    - stylesheets
-  skip_empty_files: true
-  index_app_catalog: true
-  blog_full_content: true
-  jinja2_undefined: silent  # unresolvable vars left as-is
-dependencies_added:
+  docs_site_default: "~/.local/share/rcac-docs-mcp/RCAC-Docs"
+  docs_site_env_override: RCAC_DOCS_SITE
+  docs_site_url: "https://github.com/PurdueRCAC/RCAC-Docs"
+  docs_site_url_env_override: RCAC_DOCS_SITE_URL
+  site_update: clone-or-pull   # --update-site clones fresh or git pull --rebase
+  hosted_at: "docs.rcac.purdue.edu/mcp"
+deps_removed:
+  - pyjwt
+  - fabric
+  - pytest-asyncio   # dev; no async tests
+deps_kept:
+  - fastmcp
+  - cmdkit
   - pyyaml
   - jinja2
+non_importable_window: "stage1..stage3"   # expected red pytest; green again stage 4+
 ---
 
-# ROADMAP: RCAC Documentation Search Index
+# ROADMAP: RCAC-Docs MCP Refactor
 
 ## Overview
 
-Add FTS5-powered SQLite documentation search to the RCAC MCP server so agents
-can consult our 432+ markdown documentation files (user guides, software catalog,
-datasets, blog posts, workshops) before advising users. This prevents suboptimal
-or policy-violating suggestions by grounding agent responses in authoritative
-RCAC documentation.
+Separate the documentation-search capability out of the forked `rcac-mcp`
+codebase into a focused, **no-auth** `rcac-docs-mcp` service hosted at
+`docs.rcac.purdue.edu/mcp`. Strip every HPC cluster operation (Slurm, SFTP,
+LMOD/env), all authentication (JWT/OIDC), and the container/TLS
+infrastructure; keep only the docs indexer and the `doc_search` / `doc_load`
+tools. Restructure so the indexer lives in an `index/` subpackage and the two
+tools live in a single `tools.py`, rename the package/distribution, and add a
+CLI step that clones or updates the local RCAC-Docs checkout before indexing.
 
-The implementation plan is tracked in `<plan: bb88ff3d-7742-44f5-bfbb-6cece6050034>`.
+This file is the **resume ground truth**. The *why* lives in the
+implementation plan (`plan_id` above); this tracker holds the *what* and the
+*progress*. See `AGENTS.md` for orientation.
 
-## Key Architecture Decisions
+## How to use this tracker
 
-- **Local to MCP process**: Doc search runs against a local SQLite database, no
-  SSH needed. Works in all execution modes (stdio, http, local).
-- **CLI build step**: `rcac-mcp --index-docs --docs-path PATH` builds/updates
-  the database. Incremental via SHA-256 content hashing.
-- **XDG default path**: `~/.config/rcac-mcp/docs.db` with `RCAC_DOCS_DB` env
-  var override.
-- **Full snippet/template resolution**: `--8<--` pymdownx snippets are inlined,
-  Jinja2 `{{ vars }}` and `{{ macro(args) }}` are rendered using frontmatter,
-  `mkdocs.yml` extra vars, and `main.py` macros from the docs repo.
-- **`--docs-path` points at repo root**: Needs access to `main.py`, `mkdocs.yml`,
-  and `docs/` together.
+- Work happens on `wip`, one stage at a time, each landing a `WIP:` commit.
+- Drive it with the **`/continue`** skill (`.agents/skills/continue`); ship
+  with **`/release`** (`.agents/skills/release`).
+- When a stage's items are all `[x]`, bump `current_stage` and append the
+  stage number to `stages_completed`.
+- **Expected mid-refactor breakage:** the package is intentionally
+  non-importable from the start of Stage 1 through the end of Stage 3
+  (deletions precede the rewire). A red `pytest` in that window is expected;
+  it goes green again at Stage 4.
 
-## File Layout
+## Naming & layout target
 
 ```
-src/rcac_mcp/
-  docs/
-    __init__.py         # Package init, public API
-    schema.sql          # DDL: documents, chunks, chunks_fts, triggers, indexes
-    database.py         # SQLite connection management, search/load/upsert queries
-    indexer.py          # Markdown walking, frontmatter parsing, snippet resolution,
-                        #   Jinja2 rendering, H2 chunking, incremental indexing
-  tools/
-    docs.py             # doc_search and doc_load MCP tools
+src/rcac_docs_mcp/
+  __init__.py     # CmdKit CLI: serve (stdio|http) | --update-site | --index-docs
+  __main__.py
+  server.py       # create_mcp_server(): FastMCP, no auth, docs-only instructions
+  tools.py        # mcp_tool + TOOL_REGISTRY + doc_search + doc_load
+  site.py         # clone/update the local RCAC-Docs checkout (git via subprocess)
+  index/
+    __init__.py   # re-exports DocsDatabase, DocsIndexer, DEFAULT_DB_PATH
+    database.py
+    indexer.py
+    schema.sql
+  static/purdue-favicon.ico
 ```
-
-## Relevant Source Files (rcac-mcp)
-
-- `src/rcac_mcp/__init__.py` — CLI app (MCPServerApp), add --index-docs flags here
-- `src/rcac_mcp/server.py` — SERVER_INSTRUCTIONS, create_mcp_server()
-- `src/rcac_mcp/tools/__init__.py` — TOOL_REGISTRY, @mcp_tool decorator, tool imports
-- `src/rcac_mcp/tools/rcac.py` — Example tool pattern to follow
-- `src/rcac_mcp/resources.py` — RESOURCE_REGISTRY pattern (for reference)
-- `src/rcac_mcp/context.py` — ContextVar pattern (for reference)
-- `pyproject.toml` — Dependencies
-
-## Relevant Source Files (RCAC-Docs)
-
-- `main.py` — Jinja2 macro functions (login_snippet, ssh_keys_snippet, etc.)
-- `mkdocs.yml` — `extra:` vars (org), `nav:` structure, plugin config
-- `docs/` — All markdown content
-- `docs/snippets/` — Include fragments (skip from indexing, resolve into parents)
-- `docs/software/apps_md/` — 270 auto-generated per-app docs
-
-## Document Structure Notes
-
-- Frontmatter fields: `tags`, `authors`, `date` (blog), `title`, `slug`,
-  `categories` (blog), `resource`/`cluster`/`host` (template vars), `hide`,
-  `search` (boost), `draft`
-- Snippet syntax: `--8<-- "docs/snippets/file.md"` (whole file),
-  `--8<-- "docs/snippets/file.md:section"` (named section),
-  fenced multi-file blocks
-- Macro syntax: `{{ variable }}`, `{{ function(args) }}`, `{% set %}`, `{% raw %}`
-- Blog truncation: `<!-- more -->` marker (include full content, ignore marker)
 
 ---
 
-## Implementation Phases
+## Stage 0 — Governance & execution harness
 
-### Phase 1: Schema and Database Layer
-- [x] Create `src/rcac_mcp/docs/__init__.py` with public API exports
-- [x] Create `src/rcac_mcp/docs/schema.sql` with full DDL (documents, chunks, chunks_fts, triggers, index)
-- [x] Create `src/rcac_mcp/docs/database.py` with DocsDatabase class:
-  - [x] `__init__(db_path, read_only=False)` — open/create connection
-  - [x] `create_schema()` — execute schema.sql
-  - [x] `upsert_document(path, title, category, content, source_hash)` — insert/update doc + chunks
-  - [x] `remove_document(path)` — delete doc and cascading chunks
-  - [x] `get_source_hash(path)` — for incremental checks
-  - [x] `search(query, category=None, limit=20)` — FTS5 BM25-ranked search with snippet()
-  - [x] `load_document(path)` — return full document content
-  - [x] `stats()` — document/chunk counts
-  - [x] `close()` — cleanup
-- [x] Add `pyyaml` and `jinja2` to pyproject.toml dependencies
-- [x] Verify schema works: quick smoke test creating an in-memory DB
+Additive only; package stays importable. Committed before any pruning.
 
-### Phase 2: Markdown Parser and Indexer
-- [x] Create `src/rcac_mcp/docs/indexer.py` with DocsIndexer class:
-  - [x] `__init__(docs_repo_root)` — validate repo structure (main.py, mkdocs.yml, docs/)
-  - [x] `_load_mkdocs_extra()` — parse mkdocs.yml, extract `extra:` vars
-  - [x] `_load_macros()` — dynamically load main.py macro functions via define_env pattern
-  - [x] `_resolve_snippets(content, base_path)` — expand all --8<-- directives
-  - [x] `_render_jinja2(content, frontmatter)` — render templates with full context
-  - [x] `_parse_frontmatter(raw)` — split YAML frontmatter from body, return (metadata, body)
-  - [x] `_extract_title(metadata, body)` — from frontmatter title, first # heading, or filename
-  - [x] `_derive_category(rel_path)` — from top-level directory path
-  - [x] `_chunk_by_h2(content)` — split on ## boundaries, return list of (heading, content) tuples
-  - [x] `_should_skip(rel_path)` — skip snippets/, assets/, stylesheets/, empty files
-  - [x] `build(db_path)` — main entry point: walk, parse, resolve, chunk, upsert, prune stale docs
-- [x] Test snippet resolution against real RCAC-Docs files (running_jobs_python.md, etc.)
-- [x] Test Jinja2 rendering against docs with {{ resource }}, {{ cluster }}, macro calls
+- [x] Add `.agents/skills/release/SKILL.md` (`/release`, adapted to uv/pytest)
+- [x] Add `.agents/skills/continue/SKILL.md` (`/continue`, stage-based executor)
+- [x] Add convention symlinks `.claude -> .agents` and `CLAUDE.md -> AGENTS.md`
+- [x] Author clean root `AGENTS.md` for the docs-only service
+- [x] Overwrite `ROADMAP.md` with this staged tracker (frontmatter + checklists)
 
-### Phase 3: MCP Tools
-- [x] Create `src/rcac_mcp/tools/docs.py`:
-  - [x] `doc_search(query, category=None)` — FTS5 search, return formatted ranked results
-  - [x] `doc_load(path)` — return full document markdown by relative path
-  - [x] Handle missing docs.db gracefully (return helpful message)
-  - [x] Module-level DB path resolution (RCAC_DOCS_DB env var → ~/.config/rcac-mcp/docs.db)
-- [x] Register docs tool module in `src/rcac_mcp/tools/__init__.py`
-- [x] Verify tools appear in TOOL_REGISTRY when imported
+## Stage 1 — Prune dead code, infra, and dependencies
 
-### Phase 4: CLI Integration
-- [x] Add `--index-docs` flag to MCPServerApp
-- [x] Add `--docs-path` argument to MCPServerApp
-- [x] Add `--docs-output` argument with default `~/.config/rcac-mcp/docs.db`
-- [x] Implement index-docs flow in MCPServerApp.run(): detect flag, run indexer, print summary, exit
-- [x] Create ~/.config/rcac-mcp/ directory if it doesn't exist
-- [x] Test: `rcac-mcp --index-docs --docs-path ../RCAC-Docs`
+Starts the non-importable window.
 
-### Phase 5: Server Instructions and Agent Guidance
-- [x] Update SERVER_INSTRUCTIONS in server.py with doc search tool descriptions
-- [x] Add agent guidance: "Before advising on storage, jobs, or software, use doc_search"
-- [x] Update APP_HELP with --index-docs documentation
-- [x] Review INSTRUCTIONS.md for consistency with new capabilities
+- [ ] Delete cluster/auth modules: `auth.py`, `token.py`, `middleware.py`,
+      `context.py`, `resources.py`
+- [ ] Delete the `executor/` package (`base.py`, `delegate.py`, `shell.py`,
+      `ssh.py`, `__init__.py`)
+- [ ] Delete cluster tool modules: `tools/{shell,filesystem,transfer,rcac,slurm}.py`
+- [ ] `git rm` infra: `Dockerfile`, `compose.yml`, `nginx-dev.conf`, `SECURITY.md`
+- [ ] Remove untracked `.env` and `certs/` from disk (use `del`)
+- [ ] `pyproject.toml`: drop `pyjwt`, `fabric`, and dev `pytest-asyncio`
 
-### Phase 6: Validation and Polish
-- [x] Run full index build against RCAC-Docs repo, verify document/chunk counts
-- [x] Test doc_search with representative queries (scratch purge, conda vs anaconda, GPU jobs, etc.)
-- [x] Test doc_load with various document paths
-- [x] Test incremental update (re-run indexer, verify skipped unchanged files)
-- [x] Test stale document removal (delete a doc, re-run indexer)
-- [x] Verify server starts cleanly with and without docs.db present
-- [x] Run any existing tests (pytest), ensure nothing is broken
-- [x] Final review of all new code for consistency with project patterns
-- [x] Add RCAC-Docs as git submodule at tests/fixtures/RCAC-Docs
-- [x] Comprehensive test suite: 72 tests (database, indexer, tools, CLI)
+## Stage 2 — Restructure & rename package
+
+- [ ] Rename `src/rcac_mcp/` → `src/rcac_docs_mcp/` (`git mv`)
+- [ ] Rename `docs/` subpackage → `index/`
+- [ ] Collapse `tools/` package into a single `tools.py` (move `mcp_tool` +
+      `TOOL_REGISTRY` from old `tools/__init__.py` alongside the tools)
+- [ ] Update internal imports in kept modules to `rcac_docs_mcp.*`
+- [ ] `index/__init__.py` re-exports `DocsDatabase`, `DocsIndexer`, `DEFAULT_DB_PATH`
+- [ ] `DEFAULT_DB_PATH` → `~/.config/rcac-docs-mcp/docs.db`
+- [ ] `pyproject.toml`: rename `name`, `[project.scripts]`, and the hatchling
+      wheel `packages` entry to `rcac-docs-mcp` / `src/rcac_docs_mcp`
+
+## Stage 3 — Rewire server & CLI (docs-only, no auth) + site management
+
+- [ ] `server.py`: drop `AUTH_MODES` / `RESOURCE_REGISTRY` imports and the
+      auth/resource/middleware wiring; `create_mcp_server()` takes no args
+- [ ] `server.py`: rewrite `SERVER_INSTRUCTIONS` to docs-only; server name
+      `RCAC Docs`; keep the favicon custom route
+- [ ] `__init__.py`: remove token/auth/exec-mode/ssh CLI args, the `sse`
+      transport, and the executor/middleware/token code paths
+- [ ] `__init__.py`: keep `--index-docs` / `--docs-path` / `--docs-output`;
+      `run()` becomes index-or-serve over stdio/http
+- [ ] `__init__.py`: `__version__ = get_version('rcac-docs-mcp')`; update
+      `APP_NAME`, usage/help, website, description
+- [ ] `__main__.py`: import from `rcac_docs_mcp`
+- [ ] Add `site.py`: resolve checkout from `--docs-site` / `RCAC_DOCS_SITE` /
+      default; clone if missing else `git -C <site> pull --rebase --autostash
+      origin main`; upstream from `RCAC_DOCS_SITE_URL` / default (git via
+      `subprocess`, no new Python deps)
+- [ ] CLI: add `--update-site` (clone/update then exit); default `--docs-path`
+      to the resolved site checkout
+
+## Stage 4 — Update tests (suite green again)
+
+- [ ] `conftest.py`, `test_database.py`, `test_indexer.py`, `test_tools.py`:
+      `rcac_mcp.docs.*` → `rcac_docs_mcp.index.*`, `rcac_mcp.tools.docs` →
+      `rcac_docs_mcp.tools`
+- [ ] `test_cli.py`: `python -m rcac_mcp` → `python -m rcac_docs_mcp`
+- [ ] (Optional) add a small unit test for `site.py` path/URL resolution
+- [ ] `uv run pytest -q` collects and passes (submodule tests skip cleanly)
+
+## Stage 5 — Documentation
+
+- [ ] Rewrite `README.md` for the docs-only, no-auth, hosted service
+- [ ] Trim `INSTRUCTIONS.md` to docs-search guidance only
+- [ ] Remove stale `certs/` / `.env` lines from `.gitignore`
+- [ ] Reconcile this `ROADMAP.md` with any deltas discovered during execution
+
+## Stage 6 — Validation
+
+- [ ] `uv lock` + `uv sync` so `rcac-docs-mcp` resolves for `importlib.metadata`
+- [ ] `uv run pytest -q` green
+- [ ] Smoke: `rcac-docs-mcp --help`
+- [ ] Smoke: `rcac-docs-mcp --index-docs --docs-path tests/fixtures/RCAC-Docs`
+      builds a DB
+- [ ] Confirm `schema.sql` resolves from the installed package (non-editable)
+- [ ] Confirm the server starts over stdio with no docs.db present (graceful)
 
 ---
 
-## Bootstrap Prompt
+## Verification gate
 
-Use the following prompt to resume work on this feature in a new session:
+```bash
+uv sync --quiet
+uv run pytest -q
+```
 
-````
-We are implementing a documentation search index feature for the rcac-mcp
-project. The implementation plan is at <plan: bb88ff3d-7742-44f5-bfbb-6cece6050034>
-and the project roadmap is at ROADMAP.md in the project root.
+- **Stages 1–3:** import/collection failure is **expected** (non-importable
+  window) — record and proceed.
+- **Stage 4+:** the suite must collect and pass; submodule-dependent tests
+  skip cleanly when `tests/fixtures/RCAC-Docs` is not initialized.
+- **Stage 6:** also run the CLI smoke tests listed above.
+
+## Resume / bootstrap prompt
+
+```
+We are refactoring the rcac-docs-mcp project: isolating the docs-only MCP
+service out of the forked rcac-mcp server. The implementation plan is at
+<plan: 90ac50ab-77f6-4a6e-811c-21b42630de21> and the tracker is ROADMAP.md.
 
 Please:
-1. Read the plan and ROADMAP.md to re-establish full context.
-2. Check the YAML frontmatter `current_phase` to find where we left off.
-3. Review the checkbox state in the current phase to find the next incomplete task.
-4. Implement the sub-tasks for that step.
-5. Review your work — verify the code compiles/runs and follows project patterns.
-6. Update ROADMAP.md — check off completed items, bump `current_phase` and
-   `last_updated` in frontmatter if the phase is done.
-7. Commit with `WIP: <descriptive message>` and push to the `wip` branch.
-8. Check back in with me to see if we want to proceed to next phase or stop.
-````
+1. Read AGENTS.md, then ROADMAP.md, then the plan, to re-establish context.
+2. Check ROADMAP.md frontmatter `current_stage` for where we left off.
+3. Run `/continue` (one stage, then stop) — or `/continue status` for a
+   read-only summary first.
+4. Honor the non-importable window (Stages 1–3): a red pytest there is
+   expected, not a regression.
+5. After the stage: check off items, bump `current_stage` / `stages_completed`
+   / `last_updated`, land one `WIP:` commit (Oz co-author), and report.
+```
