@@ -3,9 +3,10 @@ project: rcac-docs-mcp
 feature: docs-only-refactor
 plan_id: 90ac50ab-77f6-4a6e-811c-21b42630de21
 branch: wip
-current_stage: 1
+current_stage: 2
 stages_completed:
   - "0"
+  - "1"
 last_updated: "2026-06-24"
 decisions:
   rename: full            # rcac_mcp -> rcac_docs_mcp; rcac-mcp -> rcac-docs-mcp
@@ -97,14 +98,14 @@ Additive only; package stays importable. Committed before any pruning.
 
 Starts the non-importable window.
 
-- [ ] Delete cluster/auth modules: `auth.py`, `token.py`, `middleware.py`,
+- [x] Delete cluster/auth modules: `auth.py`, `token.py`, `middleware.py`,
       `context.py`, `resources.py`
-- [ ] Delete the `executor/` package (`base.py`, `delegate.py`, `shell.py`,
+- [x] Delete the `executor/` package (`base.py`, `delegate.py`, `shell.py`,
       `ssh.py`, `__init__.py`)
-- [ ] Delete cluster tool modules: `tools/{shell,filesystem,transfer,rcac,slurm}.py`
-- [ ] `git rm` infra: `Dockerfile`, `compose.yml`, `nginx-dev.conf`, `SECURITY.md`
-- [ ] Remove untracked `.env` and `certs/` from disk (use `del`)
-- [ ] `pyproject.toml`: drop `pyjwt`, `fabric`, and dev `pytest-asyncio`
+- [x] Delete cluster tool modules: `tools/{shell,filesystem,transfer,rcac,slurm}.py`
+- [x] `git rm` infra: `Dockerfile`, `compose.yml`, `nginx-dev.conf`, `SECURITY.md`
+- [x] Remove untracked `.env` and `certs/` from disk (use `del`)
+- [x] `pyproject.toml`: drop `pyjwt`, `fabric`, and dev `pytest-asyncio`
 
 ## Stage 2 — Restructure & rename package
 
