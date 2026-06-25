@@ -25,7 +25,7 @@ import yaml
 import jinja2
 
 # Internal libs
-from rcac_mcp.docs.database import DocsDatabase
+from rcac_docs_mcp.index.database import DocsDatabase
 
 # Public interface
 __all__ = ['DocsIndexer']

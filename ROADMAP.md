@@ -3,11 +3,12 @@ project: rcac-docs-mcp
 feature: docs-only-refactor
 plan_id: 90ac50ab-77f6-4a6e-811c-21b42630de21
 branch: wip
-current_stage: 2
+current_stage: 3
 stages_completed:
   - "0"
   - "1"
-last_updated: "2026-06-24"
+  - "2"
+last_updated: "2026-06-25"
 decisions:
   rename: full            # rcac_mcp -> rcac_docs_mcp; rcac-mcp -> rcac-docs-mcp
   indexer_subpackage: index/   # was docs/
@@ -109,14 +110,14 @@ Starts the non-importable window.
 
 ## Stage 2 — Restructure & rename package
 
-- [ ] Rename `src/rcac_mcp/` → `src/rcac_docs_mcp/` (`git mv`)
-- [ ] Rename `docs/` subpackage → `index/`
-- [ ] Collapse `tools/` package into a single `tools.py` (move `mcp_tool` +
+- [x] Rename `src/rcac_mcp/` → `src/rcac_docs_mcp/` (`git mv`)
+- [x] Rename `docs/` subpackage → `index/`
+- [x] Collapse `tools/` package into a single `tools.py` (move `mcp_tool` +
       `TOOL_REGISTRY` from old `tools/__init__.py` alongside the tools)
-- [ ] Update internal imports in kept modules to `rcac_docs_mcp.*`
-- [ ] `index/__init__.py` re-exports `DocsDatabase`, `DocsIndexer`, `DEFAULT_DB_PATH`
-- [ ] `DEFAULT_DB_PATH` → `~/.config/rcac-docs-mcp/docs.db`
-- [ ] `pyproject.toml`: rename `name`, `[project.scripts]`, and the hatchling
+- [x] Update internal imports in kept modules to `rcac_docs_mcp.*`
+- [x] `index/__init__.py` re-exports `DocsDatabase`, `DocsIndexer`, `DEFAULT_DB_PATH`
+- [x] `DEFAULT_DB_PATH` → `~/.config/rcac-docs-mcp/docs.db`
+- [x] `pyproject.toml`: rename `name`, `[project.scripts]`, and the hatchling
       wheel `packages` entry to `rcac-docs-mcp` / `src/rcac_docs_mcp`
 
 ## Stage 3 — Rewire server & CLI (docs-only, no auth) + site management

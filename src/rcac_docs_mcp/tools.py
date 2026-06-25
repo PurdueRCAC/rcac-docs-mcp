@@ -6,22 +6,38 @@
 Provides MCP tools for searching and loading RCAC documentation from
 the local FTS5-powered SQLite index. Agents use these tools to consult
 authoritative documentation before advising users.
+
+Also defines the shared tool-registration machinery (``TOOL_REGISTRY``
+and the ``mcp_tool`` decorator) that the server uses to collect tools.
 """
 
 # Type annotations
 from __future__ import annotations
-from typing import Optional, Set
+from typing import Optional, Set, List, Callable, Any
 
 # Standard libs
 import os
 import re
 
+# External libs
+from fastmcp.tools import Tool
+
 # Internal libs
-from rcac_mcp.tools import mcp_tool
-from rcac_mcp.docs.database import DocsDatabase, DEFAULT_DB_PATH
+from rcac_docs_mcp.index.database import DocsDatabase, DEFAULT_DB_PATH
 
 # Public interface
-__all__: list[str] = []
+__all__ = ['TOOL_REGISTRY', 'mcp_tool']
+
+
+# Registry of tool functions for us to add to server later
+TOOL_REGISTRY: List[Tool] = []
+
+
+def mcp_tool(func: Callable[..., Any]) -> Tool:
+    """Decorator to register MCP tool functions."""
+    tool = Tool.from_function(func)
+    TOOL_REGISTRY.append(tool)
+    return tool
 
 
 # FTS5 operators that indicate the caller is already using query syntax
@@ -68,7 +84,7 @@ def _get_db_path() -> str:
     """Resolve the documentation database path.
 
     Checks RCAC_DOCS_DB environment variable first, then falls back
-    to the XDG-compliant default (~/.config/rcac-mcp/docs.db).
+    to the XDG-compliant default (~/.config/rcac-docs-mcp/docs.db).
     """
     return os.environ.get('RCAC_DOCS_DB', DEFAULT_DB_PATH)
 
@@ -80,7 +96,7 @@ def _db_available() -> bool:
 
 _NO_DB_MESSAGE = (
     'Documentation index is not available. '
-    'Build it with: rcac-mcp --index-docs --docs-path /path/to/RCAC-Docs'
+    'Build it with: rcac-docs-mcp --index-docs --docs-path /path/to/RCAC-Docs'
 )
 
 

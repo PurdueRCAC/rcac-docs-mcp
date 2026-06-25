@@ -12,5 +12,5 @@ authoritative docs before advising users.
 __all__ = ['DocsDatabase', 'DocsIndexer', 'DEFAULT_DB_PATH']
 
 # Re-exports
-from rcac_mcp.docs.database import DocsDatabase, DEFAULT_DB_PATH
-from rcac_mcp.docs.indexer import DocsIndexer
+from rcac_docs_mcp.index.database import DocsDatabase, DEFAULT_DB_PATH
+from rcac_docs_mcp.index.indexer import DocsIndexer

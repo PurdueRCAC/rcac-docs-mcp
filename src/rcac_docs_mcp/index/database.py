@@ -26,7 +26,7 @@ __all__ = ['DocsDatabase', 'SearchResult', 'DocStats', 'DEFAULT_DB_PATH']
 # XDG-compliant default location for the docs database
 DEFAULT_DB_PATH: str = os.path.join(
     os.environ.get('XDG_CONFIG_HOME', os.path.expanduser('~/.config')),
-    'rcac-mcp',
+    'rcac-docs-mcp',
     'docs.db',
 )
 
