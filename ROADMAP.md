@@ -3,11 +3,12 @@ project: rcac-docs-mcp
 feature: docs-only-refactor
 plan_id: 90ac50ab-77f6-4a6e-811c-21b42630de21
 branch: wip
-current_stage: 3
+current_stage: 4
 stages_completed:
   - "0"
   - "1"
   - "2"
+  - "3"
 last_updated: "2026-06-25"
 decisions:
   rename: full            # rcac_mcp -> rcac_docs_mcp; rcac-mcp -> rcac-docs-mcp
@@ -122,22 +123,22 @@ Starts the non-importable window.
 
 ## Stage 3 — Rewire server & CLI (docs-only, no auth) + site management
 
-- [ ] `server.py`: drop `AUTH_MODES` / `RESOURCE_REGISTRY` imports and the
+- [x] `server.py`: drop `AUTH_MODES` / `RESOURCE_REGISTRY` imports and the
       auth/resource/middleware wiring; `create_mcp_server()` takes no args
-- [ ] `server.py`: rewrite `SERVER_INSTRUCTIONS` to docs-only; server name
+- [x] `server.py`: rewrite `SERVER_INSTRUCTIONS` to docs-only; server name
       `RCAC Docs`; keep the favicon custom route
-- [ ] `__init__.py`: remove token/auth/exec-mode/ssh CLI args, the `sse`
+- [x] `__init__.py`: remove token/auth/exec-mode/ssh CLI args, the `sse`
       transport, and the executor/middleware/token code paths
-- [ ] `__init__.py`: keep `--index-docs` / `--docs-path` / `--docs-output`;
+- [x] `__init__.py`: keep `--index-docs` / `--docs-path` / `--docs-output`;
       `run()` becomes index-or-serve over stdio/http
-- [ ] `__init__.py`: `__version__ = get_version('rcac-docs-mcp')`; update
+- [x] `__init__.py`: `__version__ = get_version('rcac-docs-mcp')`; update
       `APP_NAME`, usage/help, website, description
-- [ ] `__main__.py`: import from `rcac_docs_mcp`
-- [ ] Add `site.py`: resolve checkout from `--docs-site` / `RCAC_DOCS_SITE` /
+- [x] `__main__.py`: import from `rcac_docs_mcp`
+- [x] Add `site.py`: resolve checkout from `--docs-site` / `RCAC_DOCS_SITE` /
       default; clone if missing else `git -C <site> pull --rebase --autostash
       origin main`; upstream from `RCAC_DOCS_SITE_URL` / default (git via
       `subprocess`, no new Python deps)
-- [ ] CLI: add `--update-site` (clone/update then exit); default `--docs-path`
+- [x] CLI: add `--update-site` (clone/update then exit); default `--docs-path`
       to the resolved site checkout
 
 ## Stage 4 — Update tests (suite green again)

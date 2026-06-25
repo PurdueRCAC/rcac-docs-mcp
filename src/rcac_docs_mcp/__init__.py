@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2025 Purdue University
 # SPDX-License-Identifier: MIT
 
-"""RCAC MCP Server: Enables agentic development with HPC clusters and storage services."""
+"""RCAC Docs MCP Server: Full-text search over Purdue RCAC documentation for AI agents."""
 
 
 # Type annotations
@@ -21,14 +21,14 @@ from cmdkit.cli import Interface
 from cmdkit.logging import Logger, level_by_name, logging_styles
 
 # Internal libs
-from rcac_mcp.server import create_mcp_server
-from rcac_mcp.token import generate_token
+from rcac_docs_mcp.server import create_mcp_server
+from rcac_docs_mcp.site import update_site, resolve_site_path
 
 # Public interface
 __all__ = ['main', 'MCPServerApp', '__version__']
-__version__ = get_version('rcac-mcp')
-__website__ = 'https://github.com/purduercac/rcac-mcp'
-__description__ = 'MCP Server for Purdue RCAC: HPC clusters and storage services for AI agents.'
+__version__ = get_version('rcac-docs-mcp')
+__website__ = 'https://github.com/PurdueRCAC/rcac-docs-mcp'
+__description__ = 'MCP Server for Purdue RCAC documentation: full-text docs search for AI agents.'
 
 # Global logger
 log = Logger.default(name=__name__, level=level_by_name['INFO'], **logging_styles['default'])
@@ -44,18 +44,15 @@ def print_exception(exc: Exception, status: int) -> int:
 DEFAULT_HOST: Final[str] = 'localhost'
 DEFAULT_PORT: Final[int] = 8000
 DEFAULT_TRANSPORT: Final[str] = 'stdio'
-DEFAULT_AUTH: Final[str] = 'none'
-DEFAULT_LIFETIME: Final[int] = 3600
-DEFAULT_EXEC_MODE: Final[str] = 'ssh'
 
 
-APP_NAME = 'rcac-mcp'
-APP_VERSION = f'RCAC MCP Server v{__version__} ({python_implementation()} {python_version()})'
+APP_NAME = 'rcac-docs-mcp'
+APP_VERSION = f'RCAC Docs MCP Server v{__version__} ({python_implementation()} {python_version()})'
 APP_USAGE = f"""\
 Usage:
-  {APP_NAME} [-h] [-v] [-t TRANSPORT] [-H HOST] [-p PORT] [-a AUTH] [-e EXEC_MODE] [--ssh-host HOST]
-             [--generate-token] [--lifetime SECONDS]
-             [--index-docs --docs-path PATH] [--docs-output PATH]
+  {APP_NAME} [-h] [-v] [-t TRANSPORT] [-H HOST] [-p PORT]
+             [--update-site] [--docs-site PATH]
+             [--index-docs] [--docs-path PATH] [--docs-output PATH]
 
   {__description__}\
 """
@@ -63,66 +60,52 @@ Usage:
 APP_HELP = f"""\
 {APP_USAGE}
 
-  The RCAC MCP Server exposes Purdue Research Computing resources through the
-  Model Context Protocol (MCP), enabling AI agents to interact with HPC clusters
-  and storage services.
+  The RCAC Docs MCP Server exposes Purdue Research Computing's documentation
+  through the Model Context Protocol (MCP), enabling AI agents to search and
+  read the official docs. It runs unauthenticated over stdio or HTTP.
 
   Transports:
     stdio     Standard I/O (default) - for local MCP clients
-    sse       Server-Sent Events over HTTP - for web-based clients
-    http      Streamable HTTP - for production deployments
-
-  Authentication:
-    none      No authentication (default) - for local development
-    jwt       JWT with symmetric key (HS256) - requires JWT_SECRET env var
-    oidc      OIDC proxy - requires OIDC_* env vars
-
-  Execution Modes:
-    ssh       Execute commands via SSH (default for stdio, or when --ssh-host is set)
-    local     Execute commands locally via $SHELL (default for http with auth=none)
-    delegate  Execute commands as authenticated user via sudo (http with auth)
+    http      Streamable HTTP - for hosted deployments
 
 Options:
-  -t, --transport   TRANSPORT   Transport protocol: stdio, sse, http (default: {DEFAULT_TRANSPORT}).
-  -H, --host        HOST        Bind address for HTTP/SSE (default: {DEFAULT_HOST}).
-  -p, --port        PORT        Port number for HTTP/SSE (default: {DEFAULT_PORT}).
-  -a, --auth        AUTH        Authentication mode: none, jwt, oidc (default: {DEFAULT_AUTH}).
-  -e, --exec-mode   MODE        Execution mode: ssh, local, delegate (default: auto).
-      --ssh-host    HOST        SSH host to connect to (required for ssh mode).
-      --generate-token          Generate a JWT token and exit (requires JWT_SECRET).
-      --sub         SUBJECT     Subject identifier for token (username or user ID).
-      --lifetime    SECONDS     Token lifetime in seconds (default: {DEFAULT_LIFETIME}).
+  -t, --transport   TRANSPORT   Transport protocol: stdio, http (default: {DEFAULT_TRANSPORT}).
+  -H, --host        HOST        Bind address for HTTP (default: {DEFAULT_HOST}).
+  -p, --port        PORT        Port number for HTTP (default: {DEFAULT_PORT}).
   -v, --version                 Show version and exit.
   -h, --help                    Show this message and exit.
 
 Environment Variables:
-  JWT_SECRET          Shared secret for JWT signing (min 32 chars, required for jwt auth).
-  OIDC_CONFIG_URL     OIDC provider discovery URL (required for oidc auth).
-  OIDC_CLIENT_ID      OAuth client ID (required for oidc auth).
-  OIDC_CLIENT_SECRET  OAuth client secret (required for oidc auth).
-  MCP_BASE_URL        Public URL of this server (required for oidc auth).
-  RCAC_SSH_HOST       Default SSH host (can be overridden with --ssh-host).
-  RCAC_USER_MAP       Path to user mapping file for delegate mode.
+  MCP_BASE_URL          Public URL of this server (used for absolute icon URLs).
+  RCAC_DOCS_DB          Path to the docs database the server reads at query time.
+  RCAC_DOCS_SITE        Path to the local RCAC-Docs checkout the indexer reads.
+  RCAC_DOCS_SITE_URL    Upstream RCAC-Docs clone URL.
+
+Site Management:
+      --update-site             Clone or update the local RCAC-Docs checkout and exit.
+      --docs-site   PATH        Path to the local RCAC-Docs checkout
+                                (default: $RCAC_DOCS_SITE or ~/.local/share/rcac-docs-mcp/RCAC-Docs).
 
 Documentation Indexing:
       --index-docs              Build/update the documentation search index and exit.
       --docs-path   PATH        Path to the RCAC-Docs repo root (contains main.py, mkdocs.yml, docs/).
-      --docs-output PATH        Output path for docs database (default: ~/.config/rcac-mcp/docs.db).
+                                Defaults to the resolved --docs-site checkout.
+      --docs-output PATH        Output path for docs database (default: ~/.config/rcac-docs-mcp/docs.db).
 
   When --index-docs is set, the server builds the FTS5 search index from the
-  RCAC-Docs repository and exits. Use --docs-path to point at the repo root.
+  RCAC-Docs repository and exits. Use --update-site first to fetch the docs.
 
 Examples:
-  {APP_NAME} --ssh-host cluster.rcac.purdue.edu   # SSH to cluster (stdio)
-  {APP_NAME} -t http --ssh-host cluster.edu       # HTTP server with SSH execution
-  {APP_NAME} -t http -e local                     # Local execution over HTTP
-  {APP_NAME} -t http -a jwt -e delegate           # Delegate to auth user
-  {APP_NAME} --index-docs --docs-path ../RCAC-Docs # Build docs search index\
+  {APP_NAME}                                       # Serve over stdio (local clients)
+  {APP_NAME} -t http -H 0.0.0.0                    # Serve over HTTP (hosted)
+  {APP_NAME} --update-site                         # Clone or update the RCAC-Docs checkout
+  {APP_NAME} --index-docs                          # Build the docs index from the checkout
+  {APP_NAME} --index-docs --docs-path ../RCAC-Docs # Build from an explicit repo path\
 """
 
 
 class MCPServerApp(Application):
-    """RCAC MCP Server application."""
+    """RCAC Docs MCP Server application."""
 
     interface = Interface(APP_NAME, APP_USAGE, APP_HELP)
     interface.add_argument('-v', '--version', action='version', version=APP_VERSION)
@@ -130,7 +113,7 @@ class MCPServerApp(Application):
 
     transport: str = DEFAULT_TRANSPORT
     interface.add_argument('-t', '--transport', default=transport,
-                           choices=['stdio', 'sse', 'http'])
+                           choices=['stdio', 'http'])
 
     host: str = DEFAULT_HOST
     interface.add_argument('-H', '--host', default=host)
@@ -138,25 +121,11 @@ class MCPServerApp(Application):
     port: int = DEFAULT_PORT
     interface.add_argument('-p', '--port', type=int, default=port)
 
-    auth: str = DEFAULT_AUTH
-    interface.add_argument('-a', '--auth', default=auth,
-                           choices=['none', 'jwt', 'oidc'])
+    update_site_flag: bool = False
+    interface.add_argument('--update-site', action='store_true', dest='update_site_flag')
 
-    exec_mode: str | None = None
-    interface.add_argument('-e', '--exec-mode', default=exec_mode,
-                           choices=['ssh', 'local', 'delegate'])
-
-    ssh_host: str | None = None
-    interface.add_argument('--ssh-host', default=ssh_host)
-
-    generate_token_flag: bool = False
-    interface.add_argument('--generate-token', action='store_true', dest='generate_token_flag')
-
-    subject: str | None = None
-    interface.add_argument('--sub', dest='subject', default=subject)
-
-    lifetime: int = DEFAULT_LIFETIME
-    interface.add_argument('--lifetime', type=int, default=lifetime)
+    docs_site: str | None = None
+    interface.add_argument('--docs-site', default=docs_site)
 
     index_docs_flag: bool = False
     interface.add_argument('--index-docs', action='store_true', dest='index_docs_flag')
@@ -176,64 +145,32 @@ class MCPServerApp(Application):
     }
 
     def run(self) -> None:
-        """Run the MCP server, generate token, or build docs index."""
+        """Update the docs site, build the docs index, or serve over stdio/http."""
+        if self.update_site_flag:
+            self._run_update_site()
+            return
+
         if self.index_docs_flag:
             self._run_index_docs()
             return
 
-        if self.generate_token_flag:
-            secret = os.environ.get('JWT_SECRET')
-            if not secret:
-                raise ValueError('JWT_SECRET environment variable required for token generation')
-            if len(secret) < 32:
-                raise ValueError('JWT_SECRET must be at least 32 characters')
-            print(generate_token(secret, self.lifetime, self.subject))
-            return
+        mcp = create_mcp_server()
+        if self.transport == 'stdio':
+            mcp.run(transport='stdio')
+        elif self.transport == 'http':
+            mcp.run(transport='streamable-http', host=self.host, port=self.port)
 
-        # Determine execution mode
-        exec_mode = self._resolve_exec_mode()
-        log.info(f'Execution mode: {exec_mode}')
-
-        # Create executor and middleware based on mode
-        executor = None
-        middlewares = []
-
-        if exec_mode == 'delegate':
-            # Delegate mode uses per-request executors via middleware
-            from rcac_mcp.middleware import AuthExecutorMiddleware
-            middlewares.append(AuthExecutorMiddleware(self.auth))
-            log.info('Delegate mode: executor will be created per-request based on auth')
-        else:
-            # SSH and local modes use a shared executor via middleware
-            from rcac_mcp.middleware import SharedExecutorMiddleware
-            executor = self._create_executor(exec_mode)
-            middlewares.append(SharedExecutorMiddleware(executor))
-
-            if exec_mode == 'ssh':
-                log.info(f'SSH connection established to {executor.hostname}')
-
-        try:
-            mcp = create_mcp_server(self.auth, middlewares=middlewares)
-            if self.transport == 'stdio':
-                mcp.run(transport='stdio')
-            elif self.transport == 'sse':
-                mcp.run(transport='sse', host=self.host, port=self.port)
-            elif self.transport == 'http':
-                mcp.run(transport='streamable-http', host=self.host, port=self.port)
-        finally:
-            # Clean up executor (if any)
-            if executor:
-                executor.close()
+    def _run_update_site(self) -> None:
+        """Clone or update the local RCAC-Docs checkout."""
+        log.info('Updating RCAC-Docs checkout')
+        path = update_site(self.docs_site)
+        print(f'RCAC-Docs checkout ready at: {path}')
 
     def _run_index_docs(self) -> None:
         """Build or update the documentation search index."""
-        from rcac_mcp.docs import DocsIndexer, DEFAULT_DB_PATH
+        from rcac_docs_mcp.index import DocsIndexer, DEFAULT_DB_PATH
 
-        if not self.docs_path:
-            raise ValueError(
-                '--docs-path is required when using --index-docs'
-            )
-
+        docs_path = self.docs_path or resolve_site_path(self.docs_site)
         db_path = self.docs_output or DEFAULT_DB_PATH
 
         # Create output directory if it doesn't exist
@@ -241,10 +178,10 @@ class MCPServerApp(Application):
         if db_dir:
             os.makedirs(db_dir, exist_ok=True)
 
-        log.info('Building docs index from %s', self.docs_path)
+        log.info('Building docs index from %s', docs_path)
         log.info('Output: %s', db_path)
 
-        indexer = DocsIndexer(self.docs_path)
+        indexer = DocsIndexer(docs_path)
         stats = indexer.build(db_path)
 
         print(f'Documentation index built successfully:')
@@ -252,43 +189,7 @@ class MCPServerApp(Application):
         print(f'  Skipped:   {stats["skipped"]} unchanged')
         print(f'  Removed:   {stats["removed"]} stale')
 
-    def _resolve_exec_mode(self) -> str:
-        """Determine execution mode from args or defaults."""
-        if self.exec_mode:
-            return self.exec_mode
-
-        # Auto-select based on transport, auth, and ssh-host
-        if self.transport == 'stdio':
-            return 'ssh'
-        elif self.ssh_host or os.environ.get('RCAC_SSH_HOST'):
-            # If SSH host is specified, use ssh mode regardless of transport
-            return 'ssh'
-        elif self.auth == 'none':
-            return 'local'
-        else:
-            return 'delegate'
-
-    def _create_executor(self, exec_mode: str):
-        """Create executor based on mode."""
-        from rcac_mcp.executor.ssh import SSHExecutor
-        from rcac_mcp.executor.shell import LocalShellExecutor
-        from rcac_mcp.executor.delegate import DelegatingExecutor, load_user_map
-
-        if exec_mode == 'ssh':
-            ssh_host = self.ssh_host or os.environ.get('RCAC_SSH_HOST')
-            if not ssh_host:
-                raise ValueError(
-                    'SSH host required: use --ssh-host or set RCAC_SSH_HOST'
-                )
-            return SSHExecutor(ssh_host)
-
-        elif exec_mode == 'local':
-            return LocalShellExecutor()
-
-        else:
-            raise ValueError(f'Unknown exec mode: {exec_mode}')
-
 
 def main(argv: List[str] | None = None) -> int:
-    """Entry point for the rcac-mcp server."""
+    """Entry point for the rcac-docs-mcp server."""
     return MCPServerApp.main(argv or sys.argv[1:])
