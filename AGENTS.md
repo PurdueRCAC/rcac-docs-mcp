@@ -47,13 +47,13 @@ stage in `ROADMAP.md` and detailed in the linked implementation plan
 
 ```
 src/rcac_docs_mcp/
-  __init__.py     # CmdKit CLI: serve (stdio|http) OR --update-site OR --index-docs
+  __init__.py     # CmdKit CLI: serve (stdio|http) OR --update-site OR --index
   __main__.py     # python -m rcac_docs_mcp
   server.py       # create_mcp_server(): FastMCP, no auth, docs-only instructions
   tools.py        # mcp_tool + TOOL_REGISTRY + doc_search + doc_load
-  site.py         # clone/update the local RCAC-Docs checkout (git via subprocess)
+  site.py         # resolve/clone/update the site (repo + index); git via subprocess
   index/
-    __init__.py   # re-exports DocsDatabase, DocsIndexer, DEFAULT_DB_PATH
+    __init__.py   # re-exports DocsDatabase, DocsIndexer
     database.py   # SQLite FTS5 DocsDatabase (schema, upsert, search, load, stats)
     indexer.py    # DocsIndexer: walk docs, resolve snippets + Jinja2, H2-chunk, upsert
     schema.sql    # FTS5 DDL (documents, chunks, chunks_fts, triggers)
@@ -72,26 +72,27 @@ pruning.
 
 ## Data locations & environment variables
 
-The indexer parses a **local checkout of the RCAC-Docs site repo**
-(`https://github.com/PurdueRCAC/RCAC-Docs`). The CLI can clone that checkout
-fresh or update it (`git pull --rebase`) before indexing.
+A **site** is a single container directory that holds both the local checkout
+of the RCAC-Docs repo (`https://github.com/PurdueRCAC/RCAC-Docs`) under
+`repo/` and the built SQLite index as `index.db`. The CLI can clone that repo
+fresh or update it (`git pull --rebase`) before indexing, and `--index`
+writes the index alongside it.
 
-- `RCAC_DOCS_SITE` — path to the local RCAC-Docs checkout the indexer reads.
-  Default: `~/.local/share/rcac-docs-mcp/RCAC-Docs`.
-- `RCAC_DOCS_SITE_URL` — upstream clone URL. Default:
+- `RCAC_DOCS_SITE` — path to the local site container. Default:
+  `~/.local/share/rcac-docs-mcp`. The docs checkout lives at `<site>/repo`
+  and the search index at `<site>/index.db`.
+- `RCAC_DOCS_URL` — upstream clone URL. Default:
   `https://github.com/PurdueRCAC/RCAC-Docs`.
-- `RCAC_DOCS_DB` — path to the built SQLite index the server reads at query
-  time. Default: `~/.config/rcac-docs-mcp/docs.db`.
 
 Typical operator flow:
 ```bash
-rcac-docs-mcp --update-site      # clone or git-pull the RCAC-Docs checkout
-rcac-docs-mcp --index-docs       # build/refresh the FTS5 index from that checkout
+rcac-docs-mcp --update-site      # clone or git-pull <site>/repo
+rcac-docs-mcp --index            # build/refresh <site>/index.db from <site>/repo
 rcac-docs-mcp -t http -H 0.0.0.0 # serve (hosted); default transport is stdio
 ```
-`--docs-path` overrides the indexer's source directory; it defaults to the
-resolved `RCAC_DOCS_SITE`. `--docs-output` overrides the DB path
-(defaults to `RCAC_DOCS_DB`).
+`--site PATH` overrides the container location (otherwise `$RCAC_DOCS_SITE`
+or the default); the repo source and index output are always derived from it
+(`<site>/repo` and `<site>/index.db`).
 
 ## Document split (load-bearing)
 
@@ -157,9 +158,9 @@ uv sync
 uv run pytest -q
 ```
 Tests live in `tests/` (`test_database.py`, `test_indexer.py`,
-`test_tools.py`, `test_cli.py`). Many integration tests depend on the
-**RCAC-Docs git submodule** fixture at `tests/fixtures/RCAC-Docs`; when it is
-not initialized those tests **skip cleanly**. To run them:
+`test_tools.py`, `test_cli.py`, `test_site.py`). Many integration tests
+depend on the **RCAC-Docs git submodule** fixture at `tests/fixtures/RCAC-Docs`;
+when it is not initialized those tests **skip cleanly**. To run them:
 ```bash
 git submodule update --init tests/fixtures/RCAC-Docs
 ```

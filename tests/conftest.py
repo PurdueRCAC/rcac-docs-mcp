@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2025 Purdue University
 # SPDX-License-Identifier: MIT
 
-"""Shared pytest fixtures for rcac-mcp tests."""
+"""Shared pytest fixtures for rcac-docs-mcp tests."""
 
 from __future__ import annotations
 
@@ -10,8 +10,8 @@ from pathlib import Path
 
 import pytest
 
-from rcac_mcp.docs.database import DocsDatabase
-from rcac_mcp.docs.indexer import DocsIndexer
+from rcac_docs_mcp.index.database import DocsDatabase
+from rcac_docs_mcp.index.indexer import DocsIndexer
 
 
 # ---------------------------------------------------------------------------
@@ -56,7 +56,7 @@ def mem_db() -> DocsDatabase:
 @pytest.fixture
 def tmp_db_path(tmp_path: Path) -> str:
     """Temporary file path for a docs database."""
-    return str(tmp_path / 'docs.db')
+    return str(tmp_path / 'index.db')
 
 
 @pytest.fixture
@@ -112,3 +112,23 @@ def built_db(indexer: DocsIndexer, tmp_db_path: str) -> str:
     """Build the full index against the submodule and return the DB path."""
     indexer.build(tmp_db_path)
     return tmp_db_path
+
+
+# ---------------------------------------------------------------------------
+# Site fixtures
+# ---------------------------------------------------------------------------
+
+@pytest.fixture
+def site_with_repo(tmp_path: Path) -> Path:
+    """Site container whose repo/ links to the RCAC-Docs submodule.
+
+    Mirrors the on-disk layout the CLI expects (``<site>/repo`` holds the
+    docs checkout; ``<site>/index.db`` is written by --index) without
+    cloning anything.
+    """
+    if not _submodule_available():
+        pytest.skip('RCAC-Docs submodule not cloned')
+    site = tmp_path / 'site'
+    site.mkdir()
+    (site / 'repo').symlink_to(RCAC_DOCS_DIR)
+    return site

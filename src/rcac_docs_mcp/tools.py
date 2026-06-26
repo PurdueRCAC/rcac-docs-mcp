@@ -23,7 +23,8 @@ import re
 from fastmcp.tools import Tool
 
 # Internal libs
-from rcac_docs_mcp.index.database import DocsDatabase, DEFAULT_DB_PATH
+from rcac_docs_mcp.index.database import DocsDatabase
+from rcac_docs_mcp.site import resolve_db_path
 
 # Public interface
 __all__ = ['TOOL_REGISTRY', 'mcp_tool']
@@ -83,10 +84,11 @@ def _normalize_query(query: str) -> str:
 def _get_db_path() -> str:
     """Resolve the documentation database path.
 
-    Checks RCAC_DOCS_DB environment variable first, then falls back
-    to the XDG-compliant default (~/.config/rcac-docs-mcp/docs.db).
+    The index lives inside the site container (``<site>/index.db``),
+    resolved from the ``RCAC_DOCS_SITE`` environment variable or the
+    XDG-compliant default (~/.local/share/rcac-docs-mcp/index.db).
     """
-    return os.environ.get('RCAC_DOCS_DB', DEFAULT_DB_PATH)
+    return resolve_db_path()
 
 
 def _db_available() -> bool:
@@ -96,7 +98,7 @@ def _db_available() -> bool:
 
 _NO_DB_MESSAGE = (
     'Documentation index is not available. '
-    'Build it with: rcac-docs-mcp --index-docs --docs-path /path/to/RCAC-Docs'
+    'Build it with: rcac-docs-mcp --update-site && rcac-docs-mcp --index'
 )
 
 

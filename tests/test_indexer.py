@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2025 Purdue University
 # SPDX-License-Identifier: MIT
 
-"""Tests for rcac_mcp.docs.indexer — markdown parsing and indexing pipeline."""
+"""Tests for rcac_docs_mcp.index.indexer — markdown parsing and indexing pipeline."""
 
 from __future__ import annotations
 
@@ -9,8 +9,8 @@ from pathlib import Path
 
 import pytest
 
-from rcac_mcp.docs.database import DocsDatabase
-from rcac_mcp.docs.indexer import DocsIndexer
+from rcac_docs_mcp.index.database import DocsDatabase
+from rcac_docs_mcp.index.indexer import DocsIndexer
 
 from conftest import requires_submodule
 

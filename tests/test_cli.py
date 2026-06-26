@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2025 Purdue University
 # SPDX-License-Identifier: MIT
 
-"""Tests for CLI --index-docs integration."""
+"""Tests for CLI --index / --site integration."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from conftest import requires_submodule, RCAC_DOCS_DIR
+from conftest import requires_submodule
 
 
 # ---------------------------------------------------------------------------
@@ -20,14 +20,14 @@ from conftest import requires_submodule, RCAC_DOCS_DIR
 
 class TestHelpOutput:
 
-    def test_help_contains_index_docs(self) -> None:
+    def test_help_contains_actions(self) -> None:
         result = subprocess.run(
-            [sys.executable, '-m', 'rcac_mcp', '--help'],
+            [sys.executable, '-m', 'rcac_docs_mcp', '--help'],
             capture_output=True, text=True,
         )
-        assert '--index-docs' in result.stdout
-        assert '--docs-path' in result.stdout
-        assert '--docs-output' in result.stdout
+        assert '--index' in result.stdout
+        assert '--site' in result.stdout
+        assert '--update-site' in result.stdout
 
 
 # ---------------------------------------------------------------------------
@@ -36,24 +36,18 @@ class TestHelpOutput:
 
 class TestCLIErrors:
 
-    def test_index_docs_without_docs_path(self) -> None:
-        result = subprocess.run(
-            [sys.executable, '-m', 'rcac_mcp', '--index-docs'],
-            capture_output=True, text=True,
-        )
-        assert result.returncode != 0
-        assert '--docs-path' in result.stderr or '--docs-path' in result.stdout
-
-    def test_index_docs_invalid_path(self, tmp_path: Path) -> None:
+    def test_index_invalid_site(self, tmp_path: Path) -> None:
+        # A site whose repo/ does not exist cannot be indexed.
         result = subprocess.run(
             [
-                sys.executable, '-m', 'rcac_mcp',
-                '--index-docs',
-                '--docs-path', str(tmp_path / 'nonexistent'),
+                sys.executable, '-m', 'rcac_docs_mcp',
+                '--index',
+                '--site', str(tmp_path / 'nonexistent'),
             ],
             capture_output=True, text=True,
         )
         assert result.returncode != 0
+        assert 'not found' in result.stderr or 'not found' in result.stdout
 
 
 # ---------------------------------------------------------------------------
@@ -63,14 +57,12 @@ class TestCLIErrors:
 @requires_submodule
 class TestCLIBuild:
 
-    def test_index_docs_builds_database(self, tmp_path: Path) -> None:
-        db_path = tmp_path / 'docs.db'
+    def test_index_builds_database(self, site_with_repo: Path) -> None:
         result = subprocess.run(
             [
-                sys.executable, '-m', 'rcac_mcp',
-                '--index-docs',
-                '--docs-path', str(RCAC_DOCS_DIR),
-                '--docs-output', str(db_path),
+                sys.executable, '-m', 'rcac_docs_mcp',
+                '--index',
+                '--site', str(site_with_repo),
             ],
             capture_output=True, text=True,
             timeout=120,
@@ -78,15 +70,13 @@ class TestCLIBuild:
         assert result.returncode == 0
         assert 'Documentation index built successfully' in result.stdout
         assert 'Indexed:' in result.stdout
-        assert db_path.exists()
+        assert (site_with_repo / 'index.db').exists()
 
-    def test_index_docs_incremental(self, tmp_path: Path) -> None:
-        db_path = tmp_path / 'docs.db'
+    def test_index_incremental(self, site_with_repo: Path) -> None:
         args = [
-            sys.executable, '-m', 'rcac_mcp',
-            '--index-docs',
-            '--docs-path', str(RCAC_DOCS_DIR),
-            '--docs-output', str(db_path),
+            sys.executable, '-m', 'rcac_docs_mcp',
+            '--index',
+            '--site', str(site_with_repo),
         ]
         # First build
         subprocess.run(args, capture_output=True, text=True, timeout=120)

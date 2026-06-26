@@ -22,7 +22,7 @@ from cmdkit.logging import Logger, level_by_name, logging_styles
 
 # Internal libs
 from rcac_docs_mcp.server import create_mcp_server
-from rcac_docs_mcp.site import update_site, resolve_site_path
+from rcac_docs_mcp.site import update_site, resolve_repo_path, resolve_db_path
 
 # Public interface
 __all__ = ['main', 'MCPServerApp', '__version__']
@@ -51,8 +51,7 @@ APP_VERSION = f'RCAC Docs MCP Server v{__version__} ({python_implementation()} {
 APP_USAGE = f"""\
 Usage:
   {APP_NAME} [-h] [-v] [-t TRANSPORT] [-H HOST] [-p PORT]
-             [--update-site] [--docs-site PATH]
-             [--index-docs] [--docs-path PATH] [--docs-output PATH]
+             [--update-site] [--index] [--site PATH]
 
   {__description__}\
 """
@@ -77,30 +76,29 @@ Options:
 
 Environment Variables:
   MCP_BASE_URL          Public URL of this server (used for absolute icon URLs).
-  RCAC_DOCS_DB          Path to the docs database the server reads at query time.
-  RCAC_DOCS_SITE        Path to the local RCAC-Docs checkout the indexer reads.
-  RCAC_DOCS_SITE_URL    Upstream RCAC-Docs clone URL.
+  RCAC_DOCS_SITE        Path to the local site directory (holds the docs repo
+                        and the search index).
+  RCAC_DOCS_URL         Upstream RCAC-Docs clone URL.
 
 Site Management:
-      --update-site             Clone or update the local RCAC-Docs checkout and exit.
-      --docs-site   PATH        Path to the local RCAC-Docs checkout
-                                (default: $RCAC_DOCS_SITE or ~/.local/share/rcac-docs-mcp/RCAC-Docs).
+      --update-site             Clone or update the docs repo in the site and exit.
+      --site        PATH        Path to the local site directory holding the docs
+                                repo (repo/) and the search index (index.db)
+                                (default: $RCAC_DOCS_SITE or ~/.local/share/rcac-docs-mcp).
 
 Documentation Indexing:
-      --index-docs              Build/update the documentation search index and exit.
-      --docs-path   PATH        Path to the RCAC-Docs repo root (contains main.py, mkdocs.yml, docs/).
-                                Defaults to the resolved --docs-site checkout.
-      --docs-output PATH        Output path for docs database (default: ~/.config/rcac-docs-mcp/docs.db).
+      --index                   Build/update the documentation search index and exit.
 
-  When --index-docs is set, the server builds the FTS5 search index from the
-  RCAC-Docs repository and exits. Use --update-site first to fetch the docs.
+  The site is a single directory containing the cloned RCAC-Docs repository
+  (repo/) and the built search index (index.db). Run --update-site first to
+  fetch the docs, then --index to build the index from that checkout.
 
 Examples:
-  {APP_NAME}                                       # Serve over stdio (local clients)
-  {APP_NAME} -t http -H 0.0.0.0                    # Serve over HTTP (hosted)
-  {APP_NAME} --update-site                         # Clone or update the RCAC-Docs checkout
-  {APP_NAME} --index-docs                          # Build the docs index from the checkout
-  {APP_NAME} --index-docs --docs-path ../RCAC-Docs # Build from an explicit repo path\
+  {APP_NAME}                                # Serve over stdio (local clients)
+  {APP_NAME} -t http -H 0.0.0.0             # Serve over HTTP (hosted)
+  {APP_NAME} --update-site                  # Clone or update the docs repo in the site
+  {APP_NAME} --index                        # Build the search index from the site
+  {APP_NAME} --index --site /data/rcac-docs # Build from an explicit site directory\
 """
 
 
@@ -124,17 +122,11 @@ class MCPServerApp(Application):
     update_site_flag: bool = False
     interface.add_argument('--update-site', action='store_true', dest='update_site_flag')
 
-    docs_site: str | None = None
-    interface.add_argument('--docs-site', default=docs_site)
+    site: str | None = None
+    interface.add_argument('--site', default=site)
 
-    index_docs_flag: bool = False
-    interface.add_argument('--index-docs', action='store_true', dest='index_docs_flag')
-
-    docs_path: str | None = None
-    interface.add_argument('--docs-path', default=docs_path)
-
-    docs_output: str | None = None
-    interface.add_argument('--docs-output', default=docs_output)
+    index_flag: bool = False
+    interface.add_argument('--index', action='store_true', dest='index_flag')
 
     log_critical = log.critical
     log_exception = log.exception
@@ -150,8 +142,8 @@ class MCPServerApp(Application):
             self._run_update_site()
             return
 
-        if self.index_docs_flag:
-            self._run_index_docs()
+        if self.index_flag:
+            self._run_index()
             return
 
         mcp = create_mcp_server()
@@ -161,27 +153,27 @@ class MCPServerApp(Application):
             mcp.run(transport='streamable-http', host=self.host, port=self.port)
 
     def _run_update_site(self) -> None:
-        """Clone or update the local RCAC-Docs checkout."""
+        """Clone or update the docs repo within the site."""
         log.info('Updating RCAC-Docs checkout')
-        path = update_site(self.docs_site)
+        path = update_site(self.site)
         print(f'RCAC-Docs checkout ready at: {path}')
 
-    def _run_index_docs(self) -> None:
+    def _run_index(self) -> None:
         """Build or update the documentation search index."""
-        from rcac_docs_mcp.index import DocsIndexer, DEFAULT_DB_PATH
+        from rcac_docs_mcp.index import DocsIndexer
 
-        docs_path = self.docs_path or resolve_site_path(self.docs_site)
-        db_path = self.docs_output or DEFAULT_DB_PATH
+        repo_path = resolve_repo_path(self.site)
+        db_path = resolve_db_path(self.site)
 
         # Create output directory if it doesn't exist
         db_dir = os.path.dirname(db_path)
         if db_dir:
             os.makedirs(db_dir, exist_ok=True)
 
-        log.info('Building docs index from %s', docs_path)
+        log.info('Building docs index from %s', repo_path)
         log.info('Output: %s', db_path)
 
-        indexer = DocsIndexer(docs_path)
+        indexer = DocsIndexer(repo_path)
         stats = indexer.build(db_path)
 
         print(f'Documentation index built successfully:')

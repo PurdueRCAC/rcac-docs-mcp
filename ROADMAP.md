@@ -3,12 +3,13 @@ project: rcac-docs-mcp
 feature: docs-only-refactor
 plan_id: 90ac50ab-77f6-4a6e-811c-21b42630de21
 branch: wip
-current_stage: 4
+current_stage: 5
 stages_completed:
   - "0"
   - "1"
   - "2"
   - "3"
+  - "4"
 last_updated: "2026-06-25"
 decisions:
   rename: full            # rcac_mcp -> rcac_docs_mcp; rcac-mcp -> rcac-docs-mcp
@@ -18,12 +19,13 @@ decisions:
   transports:            # drop sse
     - stdio
     - http
-  db_default: "~/.config/rcac-docs-mcp/docs.db"
-  db_env_override: RCAC_DOCS_DB
-  docs_site_default: "~/.local/share/rcac-docs-mcp/RCAC-Docs"
-  docs_site_env_override: RCAC_DOCS_SITE
+  site_layout: single-container       # <site>/ holds repo/ and index.db
+  cli_actions: [--index, --site, --update-site]   # dropped --index-docs/--docs-path/--docs-output
+  site_default: "~/.local/share/rcac-docs-mcp"    # container; repo at <site>/repo
+  site_env_override: RCAC_DOCS_SITE
+  db_default: "<site>/index.db"       # derived from site; no separate override
   docs_site_url: "https://github.com/PurdueRCAC/RCAC-Docs"
-  docs_site_url_env_override: RCAC_DOCS_SITE_URL
+  docs_site_url_env_override: RCAC_DOCS_URL
   site_update: clone-or-pull   # --update-site clones fresh or git pull --rebase
   hosted_at: "docs.rcac.purdue.edu/mcp"
 deps_removed:
@@ -71,13 +73,13 @@ implementation plan (`plan_id` above); this tracker holds the *what* and the
 
 ```
 src/rcac_docs_mcp/
-  __init__.py     # CmdKit CLI: serve (stdio|http) | --update-site | --index-docs
+  __init__.py     # CmdKit CLI: serve (stdio|http) | --update-site | --index
   __main__.py
   server.py       # create_mcp_server(): FastMCP, no auth, docs-only instructions
   tools.py        # mcp_tool + TOOL_REGISTRY + doc_search + doc_load
   site.py         # clone/update the local RCAC-Docs checkout (git via subprocess)
   index/
-    __init__.py   # re-exports DocsDatabase, DocsIndexer, DEFAULT_DB_PATH
+    __init__.py   # re-exports DocsDatabase, DocsIndexer
     database.py
     indexer.py
     schema.sql
@@ -116,8 +118,9 @@ Starts the non-importable window.
 - [x] Collapse `tools/` package into a single `tools.py` (move `mcp_tool` +
       `TOOL_REGISTRY` from old `tools/__init__.py` alongside the tools)
 - [x] Update internal imports in kept modules to `rcac_docs_mcp.*`
-- [x] `index/__init__.py` re-exports `DocsDatabase`, `DocsIndexer`, `DEFAULT_DB_PATH`
-- [x] `DEFAULT_DB_PATH` → `~/.config/rcac-docs-mcp/docs.db`
+- [x] `index/__init__.py` re-exports `DocsDatabase`, `DocsIndexer`
+- [x] `DEFAULT_DB_PATH` → `~/.config/rcac-docs-mcp/docs.db` (later removed in
+      Stage 4 in favor of the site-derived `<site>/index.db`)
 - [x] `pyproject.toml`: rename `name`, `[project.scripts]`, and the hatchling
       wheel `packages` entry to `rcac-docs-mcp` / `src/rcac_docs_mcp`
 
@@ -129,26 +132,47 @@ Starts the non-importable window.
       `RCAC Docs`; keep the favicon custom route
 - [x] `__init__.py`: remove token/auth/exec-mode/ssh CLI args, the `sse`
       transport, and the executor/middleware/token code paths
-- [x] `__init__.py`: keep `--index-docs` / `--docs-path` / `--docs-output`;
-      `run()` becomes index-or-serve over stdio/http
+- [x] `__init__.py`: `--index-docs` / `--docs-path` / `--docs-output`;
+      `run()` becomes index-or-serve over stdio/http (flags reworked in Stage 4
+      — see the design-revision note there)
 - [x] `__init__.py`: `__version__ = get_version('rcac-docs-mcp')`; update
       `APP_NAME`, usage/help, website, description
 - [x] `__main__.py`: import from `rcac_docs_mcp`
 - [x] Add `site.py`: resolve checkout from `--docs-site` / `RCAC_DOCS_SITE` /
       default; clone if missing else `git -C <site> pull --rebase --autostash
       origin main`; upstream from `RCAC_DOCS_SITE_URL` / default (git via
-      `subprocess`, no new Python deps)
+      `subprocess`, no new Python deps) — restructured to the single-container
+      model in Stage 4
 - [x] CLI: add `--update-site` (clone/update then exit); default `--docs-path`
       to the resolved site checkout
 
 ## Stage 4 — Update tests (suite green again)
 
-- [ ] `conftest.py`, `test_database.py`, `test_indexer.py`, `test_tools.py`:
+- [x] `conftest.py`, `test_database.py`, `test_indexer.py`, `test_tools.py`:
       `rcac_mcp.docs.*` → `rcac_docs_mcp.index.*`, `rcac_mcp.tools.docs` →
       `rcac_docs_mcp.tools`
-- [ ] `test_cli.py`: `python -m rcac_mcp` → `python -m rcac_docs_mcp`
-- [ ] (Optional) add a small unit test for `site.py` path/URL resolution
-- [ ] `uv run pytest -q` collects and passes (submodule tests skip cleanly)
+- [x] `test_cli.py`: `python -m rcac_mcp` → `python -m rcac_docs_mcp`
+- [x] add a unit test for `site.py` path/URL/repo/db resolution (`test_site.py`)
+- [x] `uv run pytest -q` collects and passes (submodule tests skip cleanly)
+
+### Stage 4 design revision (Geoffrey) — consolidate the CLI/site model
+
+The app is docs-only, so the redundant `docs` prefixes and the separate
+repo/db flags were dropped. A *site* is now one container directory holding
+the docs checkout and the index. This revises the Stage 2/3 contract:
+
+- [x] CLI: `--index-docs` → `--index`; `--docs-site` → `--site`; remove
+      `--docs-path` / `--docs-output`
+- [x] `--site` holds the repo at `<site>/repo` and the index at
+      `<site>/index.db`; `--index` builds the latter from the former
+- [x] drop `DEFAULT_DB_PATH` (was `~/.config/rcac-docs-mcp/docs.db`); the index
+      path is derived from the site by `site.py`
+- [x] env vars: `RCAC_DOCS_SITE` (container) + `RCAC_DOCS_URL`; remove
+      `RCAC_DOCS_DB` and `RCAC_DOCS_SITE_URL`
+- [x] `site.py`: add `resolve_repo_path` / `resolve_db_path` (+ `REPO_DIRNAME`
+      / `DB_FILENAME`); `update_site` clones/updates `<site>/repo`
+- [x] tests track the new model (`site_with_repo` fixture; `RCAC_DOCS_SITE`);
+      `uv run pytest -q` → 90 passed
 
 ## Stage 5 — Documentation
 
@@ -162,10 +186,10 @@ Starts the non-importable window.
 - [ ] `uv lock` + `uv sync` so `rcac-docs-mcp` resolves for `importlib.metadata`
 - [ ] `uv run pytest -q` green
 - [ ] Smoke: `rcac-docs-mcp --help`
-- [ ] Smoke: `rcac-docs-mcp --index-docs --docs-path tests/fixtures/RCAC-Docs`
-      builds a DB
+- [ ] Smoke: `rcac-docs-mcp --index --site <site>` (with `<site>/repo` →
+      `tests/fixtures/RCAC-Docs`) writes `<site>/index.db`
 - [ ] Confirm `schema.sql` resolves from the installed package (non-editable)
-- [ ] Confirm the server starts over stdio with no docs.db present (graceful)
+- [ ] Confirm the server starts over stdio with no `index.db` present (graceful)
 
 ---
 

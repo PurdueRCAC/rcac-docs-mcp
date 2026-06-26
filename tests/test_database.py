@@ -1,11 +1,11 @@
 # SPDX-FileCopyrightText: 2025 Purdue University
 # SPDX-License-Identifier: MIT
 
-"""Tests for rcac_mcp.docs.database — SQLite FTS5 database layer."""
+"""Tests for rcac_docs_mcp.index.database — SQLite FTS5 database layer."""
 
 from __future__ import annotations
 
-from rcac_mcp.docs.database import DocsDatabase, SearchResult, DocStats
+from rcac_docs_mcp.index.database import DocsDatabase, SearchResult, DocStats
 
 
 # ---------------------------------------------------------------------------

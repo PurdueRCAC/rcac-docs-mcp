@@ -14,21 +14,13 @@ from typing import Optional, List, Tuple
 from dataclasses import dataclass
 
 # Standard libs
-import os
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 
 # Public interface
-__all__ = ['DocsDatabase', 'SearchResult', 'DocStats', 'DEFAULT_DB_PATH']
+__all__ = ['DocsDatabase', 'SearchResult', 'DocStats']
 
-
-# XDG-compliant default location for the docs database
-DEFAULT_DB_PATH: str = os.path.join(
-    os.environ.get('XDG_CONFIG_HOME', os.path.expanduser('~/.config')),
-    'rcac-docs-mcp',
-    'docs.db',
-)
 
 # Path to schema.sql relative to this module
 _SCHEMA_PATH = Path(__file__).parent / 'schema.sql'
