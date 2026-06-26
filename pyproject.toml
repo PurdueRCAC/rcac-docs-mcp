@@ -1,7 +1,7 @@
 [project]
 name = "rcac-docs-mcp"
 version = "0.1.0"
-description = "Purdue RCAC MCP Server: Enables agentic development with HPC clusters and storage services"
+description = "MCP Server for Purdue RCAC documentation: full-text docs search for AI agents."
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [

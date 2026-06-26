@@ -24,8 +24,6 @@ uv.lock
 *.swo
 
 # Local development
-certs/
-.env
 *.local
 
 # Testing

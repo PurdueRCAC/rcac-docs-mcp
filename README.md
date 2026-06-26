@@ -1,147 +1,149 @@
-# RCAC MCP Server
+# RCAC Docs MCP Server
 
-Purdue RCAC MCP Server: Enables agentic development with HPC clusters and storage services.
+A single-purpose [FastMCP](https://gofastmcp.com) server that exposes Purdue
+RCAC's documentation to AI agents via full-text search. It runs
+**unauthenticated** and is hosted at `docs.rcac.purdue.edu/mcp`.
+
+The server provides exactly two tools:
+
+- `doc_search(query, category=None)` — FTS5 / BM25 full-text search over the
+  indexed RCAC documentation (user guides, software catalog, datasets, blog
+  posts, workshops).
+- `doc_load(path)` — return the full rendered markdown of one document by its
+  relative path.
+
+Agents use `doc_search` to find relevant pages, then `doc_load` to read the
+full content, so advice is grounded in current, authoritative documentation
+rather than general knowledge.
 
 ## Quick Start (Desktop Clients)
 
-For MCP-enabled desktop applications like Claude Desktop, Cursor, or Warp, add this server
-to your MCP configuration with an SSH host pointing at your cluster:
+For MCP-enabled desktop applications like Claude Desktop, Cursor, or Warp, add
+this server to your MCP configuration to run it locally over `stdio`:
 
 ```json
 {
   "mcpServers": {
-    "rcac": {
+    "rcac-docs": {
       "command": "uvx",
-      "args": ["git+https://github.com/purduercac/rcac-mcp", "--ssh-host", "cluster.rcac.purdue.edu"]
+      "args": ["git+https://github.com/PurdueRCAC/rcac-docs-mcp"]
     }
   }
 }
 ```
 
-This runs the server locally in `stdio` mode, executing commands on the cluster over SSH
-using your existing `~/.ssh/config` and keys.
+The server needs a search index to answer queries. Build one first (see
+[Building the Search Index](#building-the-search-index)); without it, the
+tools return a message explaining how to build it.
 
-Alternatively, set `RCAC_SSH_HOST` in your environment and omit `--ssh-host` from the args.
+## Connecting to the Hosted Server
 
-## Execution Modes
+A shared, no-auth instance is hosted at `docs.rcac.purdue.edu/mcp`. Point an
+HTTP-capable MCP client at that URL — no token or credentials are required.
 
-The server supports three execution modes:
+## Transports
 
-- **`ssh`** (default for stdio) — Execute commands on a remote HPC cluster via SSH.
-- **`local`** — Execute commands locally via `$SHELL`. For development/testing only.
-- **`delegate`** — Multi-user mode; run as a privileged process and delegate commands to
-  authenticated users via `sudo`. Requires JWT or OIDC authentication.
+The server runs unauthenticated over two transports:
 
-See [SECURITY.md](SECURITY.md) for detailed architecture and configuration.
-
-## Hosted HTTP Server
-
-For a shared hosted instance with authentication:
-
-### Basic HTTP Server
+- **`stdio`** (default) — for local MCP clients.
+- **`http`** (streamable HTTP) — for hosted deployments.
 
 ```bash
-rcac-mcp -t http --ssh-host cluster.rcac.purdue.edu
+rcac-docs-mcp                      # serve over stdio (local clients)
+rcac-docs-mcp -t http -H 0.0.0.0   # serve over HTTP (hosted)
 ```
 
-### With JWT Authentication
+## The Site
+
+A *site* is a single container directory that holds both the local checkout of
+the [RCAC-Docs](https://github.com/PurdueRCAC/RCAC-Docs) repository (under
+`repo/`) and the built search index (`index.db`):
+
+```
+<site>/
+  repo/       # clone of PurdueRCAC/RCAC-Docs
+  index.db    # FTS5 search index built from repo/
+```
+
+The site location is resolved from `--site`, then the `RCAC_DOCS_SITE`
+environment variable, then the default `~/.local/share/rcac-docs-mcp`. The repo
+checkout and index path are always derived from it (`<site>/repo` and
+`<site>/index.db`).
+
+### Environment Variables
+
+- `RCAC_DOCS_SITE` — path to the local site container. Default:
+  `~/.local/share/rcac-docs-mcp`.
+- `RCAC_DOCS_URL` — upstream clone URL. Default:
+  `https://github.com/PurdueRCAC/RCAC-Docs`.
+- `MCP_BASE_URL` — public URL of the server, used to construct absolute icon
+  URLs when hosting.
+
+## Building the Search Index
+
+Indexing is a two-step operator flow: fetch the docs, then build the index from
+that checkout.
 
 ```bash
-export JWT_SECRET="your-secret-key-at-least-32-characters"
-rcac-mcp -t http -a jwt -e delegate
-
-# Generate a token for clients
-rcac-mcp --generate-token --lifetime 86400
+rcac-docs-mcp --update-site   # clone or git-pull <site>/repo
+rcac-docs-mcp --index         # build/refresh <site>/index.db from <site>/repo
 ```
 
-### Docker Compose with TLS
+`--update-site` clones `RCAC_DOCS_URL` into `<site>/repo` when it is missing,
+otherwise updates it in place (`git pull --rebase --autostash origin main`).
+`--index` walks the checkout and writes `<site>/index.db`. Re-running `--index`
+performs an incremental update — only changed files are reprocessed and stale
+documents are pruned (SHA-256 hashing).
 
-For production-like deployments with HTTPS:
+Use `--site PATH` to override the container location for either command:
 
 ```bash
-# Install mkcert if needed
-brew install mkcert
-mkcert -install
-
-# Generate certificates
-mkdir -p certs
-mkcert -cert-file certs/cert.pem -key-file certs/key.pem mcp.rcac.dev localhost 127.0.0.1
-
-# Add to /etc/hosts
-echo "127.0.0.1 mcp.rcac.dev" | sudo tee -a /etc/hosts
-
-# Run
-docker compose up
+rcac-docs-mcp --index --site /data/rcac-docs
 ```
 
-The server will be available at `https://mcp.rcac.dev:8443`.
+## How Indexing Works
 
-## Documentation Search Index
+The indexing pipeline walks the RCAC-Docs `docs/` tree and, for each page,
+parses YAML frontmatter, resolves pymdownx `--8<--` snippet includes, renders
+Jinja2 macros/templates (from the docs repo's `main.py` and `mkdocs.yml`
+`extra:`), strips the `<!-- more -->` blog marker, chunks the content on `##`
+(H2) boundaries, and upserts it into SQLite with SHA-256 incremental hashing
+and stale-document pruning.
 
-The server includes an FTS5-powered search index over RCAC documentation (user guides,
-software catalog, datasets, blog posts, workshops). Agents use `doc_search` and `doc_load`
-to consult authoritative docs before advising users.
-
-Build the index from a local clone of the [RCAC-Docs](https://github.com/purduercac/RCAC-Docs) repo:
-
-```bash
-rcac-mcp --index-docs --docs-path /path/to/RCAC-Docs
-```
-
-The database is stored at `~/.config/rcac-mcp/docs.db` by default (override with
-`--docs-output` or the `RCAC_DOCS_DB` environment variable). Re-running the command
-performs an incremental update — only changed files are reprocessed.
+Search uses an FTS5 virtual table with BM25 ranking and `snippet()`
+highlighting; the optional `category` filter is a path-prefix match (e.g.
+`userguides`, `software`, `datasets`, `blog`, `workshops`).
 
 ## Available Tools
 
-### Shell & Filesystem
-
-- `run_command(command, cwd, timeout)` — Execute a shell command on the remote system
-- `list_directory(path, show_hidden)` — List contents of a directory
-- `read_file(path, encoding, max_size)` — Read contents of a file
-- `write_file(path, content, append, create_dirs)` — Write content to a file
-- `upload_file(local_path, remote_path)` — Upload a file to the remote system
-- `download_file(remote_path, local_path)` — Download a file from the remote system
-
-### RCAC Cluster
-
-- `myquota()` — Show storage usage and quota limits
-- `storage_paths()` — Get resolved paths for home, scratch, and depot
-- `jobinfo(job_id)` — Detailed job information
-- `jobcmd(job_id)` — Command submitted for a job
-- `jobenv(job_id)` — Environment variables for a job
-- `jobscript(job_id)` — Full submission script for a job
-- `showpartitions()` — Available partitions and their status
-- `average_wait(partition, account)` — Queue wait time statistics
-
-### Slurm
-
-- `sbatch(...)` — Submit a batch job (from script path or inline content)
-- `squeue(...)` — View the job queue
-- `scancel(...)` — Cancel jobs
-- `sacct(...)` — Query job accounting history
-- `sinfo(...)` — Cluster and partition status
-- `scontrol_show_job(job_id)` — Detailed Slurm job info
-- `scontrol_show_node(node)` — Detailed node info
-- `slist()` — Slurm accounts and usage (RCAC-specific)
-- `sfeatures()` — Node hardware features and constraints (RCAC-specific)
-
-### Documentation
-
-- `doc_search(query, category)` — Full-text search over RCAC documentation
-- `doc_load(path)` — Load the full content of a documentation page
+- `doc_search(query, category=None)` — Full-text search over RCAC
+  documentation. Keep queries to 2–3 key terms; use `OR` for synonyms, quoted
+  phrases for exact concepts, and prefix wildcards (`contai*`) for variants.
+  Natural-language queries are auto-normalized. Returns up to 20 BM25-ranked
+  results with path, title, heading, and a matching snippet.
+- `doc_load(path)` — Load the full rendered markdown of a documentation page by
+  its relative path (as shown in `doc_search` results).
 
 ## Development
 
 ```bash
 uv sync
-rcac-mcp -e local
+uv run pytest -q
 ```
 
-Run the test suite:
+Many integration tests depend on the RCAC-Docs git submodule fixture at
+`tests/fixtures/RCAC-Docs`; when it is not initialized those tests skip
+cleanly. To run them:
 
 ```bash
-pytest
+git submodule update --init tests/fixtures/RCAC-Docs
+```
+
+Serve a local instance during development:
+
+```bash
+rcac-docs-mcp           # stdio
+rcac-docs-mcp -t http   # streamable HTTP on localhost:8000
 ```
 
 ## License

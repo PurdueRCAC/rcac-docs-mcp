@@ -3,14 +3,15 @@ project: rcac-docs-mcp
 feature: docs-only-refactor
 plan_id: 90ac50ab-77f6-4a6e-811c-21b42630de21
 branch: wip
-current_stage: 5
+current_stage: 6
 stages_completed:
   - "0"
   - "1"
   - "2"
   - "3"
   - "4"
-last_updated: "2026-06-25"
+  - "5"
+last_updated: "2026-06-26"
 decisions:
   rename: full            # rcac_mcp -> rcac_docs_mcp; rcac-mcp -> rcac-docs-mcp
   indexer_subpackage: index/   # was docs/
@@ -176,10 +177,14 @@ the docs checkout and the index. This revises the Stage 2/3 contract:
 
 ## Stage 5 — Documentation
 
-- [ ] Rewrite `README.md` for the docs-only, no-auth, hosted service
-- [ ] Trim `INSTRUCTIONS.md` to docs-search guidance only
-- [ ] Remove stale `certs/` / `.env` lines from `.gitignore`
-- [ ] Reconcile this `ROADMAP.md` with any deltas discovered during execution
+- [x] Rewrite `README.md` for the docs-only, no-auth, hosted service
+- [x] Trim `INSTRUCTIONS.md` to docs-search guidance only
+- [x] Remove stale `certs/` / `.env` lines from `.gitignore`
+- [x] Reconcile this `ROADMAP.md` with any deltas discovered during execution
+
+> Delta folded in during Stage 5: `pyproject.toml` `description` still
+> advertised HPC clusters/storage; updated it to the docs-only description so
+> package metadata matches `__description__` in `__init__.py`.
 
 ## Stage 6 — Validation
 
