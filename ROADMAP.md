@@ -11,6 +11,7 @@ stages_completed:
   - "3"
   - "4"
   - "5"
+  - "6"
 last_updated: "2026-06-26"
 decisions:
   rename: full            # rcac_mcp -> rcac_docs_mcp; rcac-mcp -> rcac-docs-mcp
@@ -188,13 +189,13 @@ the docs checkout and the index. This revises the Stage 2/3 contract:
 
 ## Stage 6 — Validation
 
-- [ ] `uv lock` + `uv sync` so `rcac-docs-mcp` resolves for `importlib.metadata`
-- [ ] `uv run pytest -q` green
-- [ ] Smoke: `rcac-docs-mcp --help`
-- [ ] Smoke: `rcac-docs-mcp --index --site <site>` (with `<site>/repo` →
+- [x] `uv lock` + `uv sync` so `rcac-docs-mcp` resolves for `importlib.metadata`
+- [x] `uv run pytest -q` green
+- [x] Smoke: `rcac-docs-mcp --help`
+- [x] Smoke: `rcac-docs-mcp --index --site <site>` (with `<site>/repo` →
       `tests/fixtures/RCAC-Docs`) writes `<site>/index.db`
-- [ ] Confirm `schema.sql` resolves from the installed package (non-editable)
-- [ ] Confirm the server starts over stdio with no `index.db` present (graceful)
+- [x] Confirm `schema.sql` resolves from the installed package (non-editable)
+- [x] Confirm the server starts over stdio with no `index.db` present (graceful)
 
 ---
 
