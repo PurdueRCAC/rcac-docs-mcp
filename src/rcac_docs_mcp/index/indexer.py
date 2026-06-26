@@ -81,16 +81,25 @@ class DocsIndexer:
             log.warning('mkdocs.yml not found at %s', mkdocs_path)
             return {}
 
-        # mkdocs.yml may contain !!python/name tags (e.g., emoji extensions)
-        # that yaml.safe_load cannot handle.  Use a permissive SafeLoader
-        # subclass that returns the tag value as a string for unknown tags.
+        # mkdocs.yml may contain custom YAML tags that yaml.safe_load cannot
+        # handle: MkDocs' !ENV (and !relative) tags plus !!python/name: tags
+        # (e.g., the emoji extensions).  Use a permissive SafeLoader subclass
+        # that constructs any unknown-tagged node by its underlying scalar,
+        # sequence, or mapping type and ignores the tag itself.  None of these
+        # feed template variables, which are filtered to simple scalars below.
         class _PermissiveLoader(yaml.SafeLoader):
             pass
 
-        _PermissiveLoader.add_multi_constructor(
-            'tag:yaml.org,2002:python/',
-            lambda loader, suffix, node: str(node.value),
-        )
+        def _construct_unknown(loader: yaml.SafeLoader, tag_suffix: str, node: yaml.Node) -> Any:
+            if isinstance(node, yaml.ScalarNode):
+                return loader.construct_scalar(node)
+            if isinstance(node, yaml.SequenceNode):
+                return loader.construct_sequence(node, deep=True)
+            if isinstance(node, yaml.MappingNode):
+                return loader.construct_mapping(node, deep=True)
+            return None
+
+        _PermissiveLoader.add_multi_constructor('', _construct_unknown)
 
         with open(mkdocs_path) as f:
             config = yaml.load(f, Loader=_PermissiveLoader)

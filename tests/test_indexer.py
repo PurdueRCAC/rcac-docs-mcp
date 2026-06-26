@@ -141,6 +141,26 @@ class TestShouldSkip:
         assert indexer_for_skip._should_skip('userguides/gautschi/storage.md') is False
 
 
+class TestLoadMkdocsExtra:
+    """mkdocs.yml parsing must tolerate MkDocs custom YAML tags (!ENV, !!python/...)."""
+
+    def test_custom_tags_tolerated(self, tmp_path: Path) -> None:
+        (tmp_path / 'docs').mkdir()
+        (tmp_path / 'mkdocs.yml').write_text(
+            'site_name: Test\n'
+            'plugins:\n'
+            '  - git-revision-date-localized:\n'
+            '      enabled: !ENV [CI, false]\n'
+            'markdown_extensions:\n'
+            '  - pymdownx.emoji:\n'
+            '      emoji_index: !!python/name:material.extensions.emoji.twemoji\n'
+            'extra:\n'
+            '  org: Test Org\n'
+        )
+        indexer = DocsIndexer(tmp_path)
+        assert indexer._mkdocs_extra.get('org') == 'Test Org'
+
+
 # ---------------------------------------------------------------------------
 # Integration tests (require submodule)
 # ---------------------------------------------------------------------------
