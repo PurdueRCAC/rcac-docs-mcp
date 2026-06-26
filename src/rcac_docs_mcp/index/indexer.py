@@ -13,6 +13,7 @@ from __future__ import annotations
 from typing import Optional, List, Tuple, Dict, Any
 
 # Standard libs
+import contextlib
 import hashlib
 import importlib.util
 import logging
@@ -43,8 +44,8 @@ class DocsIndexer:
     """Indexes RCAC-Docs markdown files into a SQLite FTS5 database.
 
     Handles the full pipeline: walking the docs tree, parsing frontmatter,
-    resolving pymdownx snippet includes, rendering Jinja2 templates and
-    macros, chunking on H2 boundaries, and upserting into the database.
+    rendering Jinja2 templates and macros, resolving pymdownx snippet
+    includes, chunking on H2 boundaries, and upserting into the database.
 
     Args:
         docs_repo_root: Path to the RCAC-Docs repository root (contains
@@ -304,7 +305,9 @@ class DocsIndexer:
     # Jinja2 rendering
     # ------------------------------------------------------------------
 
-    def _render_jinja2(self, content: str, frontmatter: Dict[str, Any]) -> str:
+    def _render_jinja2(
+        self, content: str, frontmatter: Dict[str, Any], rel_path: str = '',
+    ) -> str:
         """Render Jinja2 templates in document content.
 
         Builds a template context from:
@@ -314,9 +317,16 @@ class DocsIndexer:
 
         Uses ``jinja2.Undefined`` to silently pass unresolvable variables.
 
+        The render runs with the working directory switched to the repo root
+        because macros in ``main.py`` read snippet files via repo-relative
+        paths (e.g. ``open('docs/snippets/...')``).  mkdocs-macros always runs
+        from the project root, so without this those ``open()`` calls raise
+        ``FileNotFoundError`` and the document would be indexed un-rendered.
+
         Args:
             content: Markdown content with potential Jinja2 syntax.
             frontmatter: Parsed YAML frontmatter from the document.
+            rel_path: Document path relative to docs/ (for log context).
 
         Returns:
             Rendered content with templates expanded.
@@ -329,15 +339,19 @@ class DocsIndexer:
         # Add macro functions to context
         context.update(self._macros)
 
+        where = f' in {rel_path}' if rel_path else ''
         try:
             env = jinja2.Environment(undefined=jinja2.Undefined)
             template = env.from_string(content)
-            return template.render(**context)
+            # Macros read snippet files via repo-relative paths; render from
+            # the repo root so those open() calls resolve as under mkdocs.
+            with contextlib.chdir(self.repo_root):
+                return template.render(**context)
         except jinja2.TemplateSyntaxError as exc:
-            log.warning('Jinja2 syntax error, returning content as-is: %s', exc)
+            log.warning('Jinja2 syntax error%s, returning content as-is: %s', where, exc)
             return content
         except Exception as exc:
-            log.warning('Jinja2 rendering error, returning content as-is: %s', exc)
+            log.warning('Jinja2 rendering error%s, returning content as-is: %s', where, exc)
             return content
 
     # ------------------------------------------------------------------
@@ -583,11 +597,18 @@ class DocsIndexer:
             if isinstance(search_config, dict) and search_config.get('exclude', False):
                 continue
 
-            # Resolve snippet includes
-            body = self._resolve_snippets(body)
+            # Render Jinja2 templates (macros) first, then resolve snippet
+            # includes.  This mirrors MkDocs: mkdocs-macros renders Jinja2 in
+            # its on_page_markdown hook (before conversion), while
+            # pymdownx.snippets includes files during conversion (after).
+            # Resolving snippets afterward means snippet text is included
+            # verbatim and never parsed as Jinja2 — important because some
+            # snippets contain brace sequences that are not templates (e.g.
+            # Mathematica output like ``{{x -> -1}}``).
+            body = self._render_jinja2(body, metadata, rel_path)
 
-            # Render Jinja2 templates
-            body = self._render_jinja2(body, metadata)
+            # Resolve snippet includes (verbatim text, not re-rendered)
+            body = self._resolve_snippets(body)
 
             # Strip the <!-- more --> blog truncation marker
             body = body.replace('<!-- more -->', '')

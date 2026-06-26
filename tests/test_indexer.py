@@ -161,6 +161,72 @@ class TestLoadMkdocsExtra:
         assert indexer._mkdocs_extra.get('org') == 'Test Org'
 
 
+class TestRenderPipeline:
+    """Hermetic build tests for the Jinja2/snippet pipeline (no submodule).
+
+    These reproduce two production bugs without the RCAC-Docs submodule:
+    1. main.py macros read snippet files via repo-relative paths, so the
+       render must run from the repo root.
+    2. Jinja2 must render before snippets are included, so snippet text
+       containing brace sequences is not parsed as a template.
+    """
+
+    @staticmethod
+    def _build_repo(root: Path) -> None:
+        docs = root / 'docs'
+        (docs / 'snippets').mkdir(parents=True)
+        (root / 'mkdocs.yml').write_text('site_name: Test\nextra:\n  org: RCAC\n')
+        # A macro that reads a repo-relative snippet file, as RCAC's main.py does.
+        (root / 'main.py').write_text(
+            'def define_env(env):\n'
+            '    @env.macro\n'
+            '    def cluster_info(resource):\n'
+            '        with open("docs/snippets/info.md") as f:\n'
+            '            return f.read().replace("{cluster}", resource.lower())\n'
+        )
+        (docs / 'snippets' / 'info.md').write_text(
+            'Welcome to the {cluster} cluster documentation section.\n'
+        )
+        # A literal snippet containing brace sequences that are NOT templates
+        # (e.g. Mathematica output) plus a stray Jinja-looking tag.
+        (docs / 'snippets' / 'literal.md').write_text(
+            'Mathematica output example follows here for the docs.\n'
+            'Out[4]= {{x -> -1}, {x -> -1}}\n'
+            '{% endraw %}\n'
+        )
+        # A page that both calls a macro and includes the literal snippet.
+        (docs / 'page.md').write_text(
+            '---\ntitle: Test Page\nresource: Gautschi\n---\n'
+            '{{ cluster_info("Gautschi") }}\n\n'
+            '## Examples\n\n'
+            '--8<-- "docs/snippets/literal.md"\n'
+        )
+
+    def test_macro_reads_relative_snippet(self, tmp_path: Path) -> None:
+        self._build_repo(tmp_path)
+        db_path = str(tmp_path / 'index.db')
+        DocsIndexer(tmp_path).build(db_path)
+        with DocsDatabase(db_path, read_only=True) as db:
+            doc = db.load_document('page.md')
+        assert doc is not None
+        # Macro output materialized (repo-relative open resolved via chdir)
+        assert 'Welcome to the gautschi cluster' in doc
+        # No unrendered macro call left behind
+        assert 'cluster_info' not in doc
+
+    def test_snippet_braces_not_parsed_as_jinja(self, tmp_path: Path) -> None:
+        self._build_repo(tmp_path)
+        db_path = str(tmp_path / 'index.db')
+        DocsIndexer(tmp_path).build(db_path)
+        with DocsDatabase(db_path, read_only=True) as db:
+            doc = db.load_document('page.md')
+        assert doc is not None
+        # Snippet text is included verbatim because snippets resolve after
+        # Jinja2 — the brace sequences survive instead of erroring out.
+        assert 'Out[4]= {{x -> -1}, {x -> -1}}' in doc
+        assert '--8<--' not in doc
+
+
 # ---------------------------------------------------------------------------
 # Integration tests (require submodule)
 # ---------------------------------------------------------------------------
