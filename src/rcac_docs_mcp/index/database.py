@@ -291,6 +291,23 @@ class DocsDatabase:
         ).fetchone()['n']
         return DocStats(document_count=doc_count, chunk_count=chunk_count)
 
+    def vacuum_into(self, dest_path: str) -> None:
+        """Write a consistent, compacted snapshot of this database to a new file.
+
+        Uses SQLite ``VACUUM INTO``, which transactionally copies the entire
+        database — schema, rows, FTS5 shadow tables, and triggers — into a
+        brand-new file at ``dest_path``.  The destination must not already
+        exist.  Used to seed an incremental rebuild in a separate file that is
+        then swapped into place atomically, so open readers are never disturbed.
+
+        Args:
+            dest_path: Filesystem path for the snapshot (must not already exist).
+        """
+        # VACUUM INTO takes a string literal, not a bound parameter, on older
+        # SQLite; embed the path safely by doubling any single quotes.
+        escaped = dest_path.replace("'", "''")
+        self._conn.execute(f"VACUUM INTO '{escaped}'")
+
     def close(self) -> None:
         """Close the database connection."""
         self._conn.close()

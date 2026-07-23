@@ -546,20 +546,60 @@ class DocsIndexer:
     # ------------------------------------------------------------------
 
     def build(self, db_path: str) -> Dict[str, int]:
-        """Build or update the documentation search index.
+        """Build or update the documentation search index, publishing atomically.
 
-        Walks the docs directory, processes each markdown file through
-        the full pipeline (frontmatter → snippets → Jinja2 → chunking),
-        and upserts into the database.  Uses SHA-256 content hashing for
-        incremental updates — unchanged files are skipped.  Stale documents
-        (files that no longer exist) are removed from the index.
+        Walks the docs directory, processes each markdown file through the full
+        pipeline (frontmatter → Jinja2 → snippets → chunking), and upserts into
+        the database, using SHA-256 content hashing for incremental updates
+        (unchanged files are skipped) and pruning documents whose source files
+        no longer exist.
+
+        The rebuild runs against a sibling ``<db>.tmp`` file — seeded from the
+        current index via ``VACUUM INTO`` so incremental hashing still applies —
+        and is then swapped onto ``db_path`` with an atomic ``os.replace``.
+        Because the MCP tools open the index read-only *by path, per request*, a
+        concurrent reader (e.g. the outgoing pod during a rolling restart) keeps
+        reading the complete previous database through its open handle and is
+        never exposed to a half-built index or lock contention.  ``':memory:'``
+        databases have no file to swap and are built in place.
 
         Args:
-            db_path: Path to the SQLite database file.
+            db_path: Path to the SQLite database file, or ``':memory:'``.
 
         Returns:
             Dictionary with build statistics:
             ``{'indexed': N, 'skipped': N, 'removed': N, 'chunks': N}``
+        """
+        if db_path == ':memory:':
+            return self._build_into(db_path)
+
+        tmp_path = f'{db_path}.tmp'
+
+        # Clear any leftover temp from a previously interrupted build so the
+        # VACUUM INTO target below is guaranteed absent.
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
+
+        # Seed the temp with a consistent snapshot of the live index so the
+        # incremental SHA-256 skip still applies.  A first-time build has no
+        # prior index to seed and simply starts from an empty schema.
+        if os.path.exists(db_path):
+            with DocsDatabase(db_path) as src:
+                src.vacuum_into(tmp_path)
+
+        stats = self._build_into(tmp_path)
+
+        # Publish atomically.  Same-directory rename → same filesystem → atomic
+        # on POSIX: readers that already opened db_path keep their (now unlinked)
+        # inode until they close; readers opening afterward see the new index.
+        os.replace(tmp_path, db_path)
+        return stats
+
+    def _build_into(self, db_path: str) -> Dict[str, int]:
+        """Run the full indexing pipeline directly against ``db_path``.
+
+        This is the in-place worker; :meth:`build` wraps it with the seed +
+        atomic-swap discipline. Returns the same statistics dict.
         """
         db = DocsDatabase(db_path, read_only=False)
         db.create_schema()

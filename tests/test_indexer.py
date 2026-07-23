@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import pytest
@@ -225,6 +226,70 @@ class TestRenderPipeline:
         # Jinja2 — the brace sequences survive instead of erroring out.
         assert 'Out[4]= {{x -> -1}, {x -> -1}}' in doc
         assert '--8<--' not in doc
+
+
+class TestAtomicRebuild:
+    """build() must publish atomically so live readers are never disturbed.
+
+    The MCP tools open the index read-only *by path, per request*, so a rolling
+    restart's outgoing pod is a reader that opened the DB before the incoming
+    pod rebuilt it. These tests reproduce that hermetically (no submodule).
+    """
+
+    @staticmethod
+    def _write_page(root: Path, body: str) -> None:
+        (root / 'docs' / 'page.md').write_text(
+            f'---\ntitle: Test Page\n---\n{body}\n'
+        )
+
+    def _build_repo(self, root: Path) -> None:
+        (root / 'docs').mkdir(parents=True)
+        (root / 'mkdocs.yml').write_text('site_name: Test\n')
+        self._write_page(root, '## Overview\n\nOLD CONTENT MARKER for the docs.')
+
+    def test_open_reader_survives_rebuild_unchanged(self, tmp_path: Path) -> None:
+        self._build_repo(tmp_path)
+        db_path = str(tmp_path / 'index.db')
+        DocsIndexer(tmp_path).build(db_path)
+
+        # A reader holds its connection open across the rebuild.
+        reader = DocsDatabase(db_path, read_only=True)
+        try:
+            before = reader.load_document('page.md')
+            assert before is not None and 'OLD CONTENT MARKER' in before
+
+            # Change the source and rebuild into the same canonical path.
+            self._write_page(tmp_path, '## Overview\n\nNEW CONTENT MARKER for the docs.')
+            DocsIndexer(tmp_path).build(db_path)
+
+            # The still-open reader keeps seeing the OLD content via its open
+            # handle — no torn read, no lock contention during the swap.
+            assert reader.load_document('page.md') == before
+            assert 'NEW CONTENT MARKER' not in reader.load_document('page.md')
+        finally:
+            reader.close()
+
+        # A reader opening AFTER the swap sees the new content.
+        with DocsDatabase(db_path, read_only=True) as fresh:
+            after = fresh.load_document('page.md')
+        assert after is not None and 'NEW CONTENT MARKER' in after
+
+        # The temp build artifact was published (renamed), not left behind.
+        assert not os.path.exists(db_path + '.tmp')
+
+    def test_rebuild_preserves_incremental_seed(self, tmp_path: Path) -> None:
+        self._build_repo(tmp_path)
+        db_path = str(tmp_path / 'index.db')
+
+        first = DocsIndexer(tmp_path).build(db_path)
+        assert first['indexed'] >= 1
+
+        # Rebuild with no source changes: VACUUM INTO carries the prior SHA-256
+        # hashes into the temp, so every document is skipped.
+        second = DocsIndexer(tmp_path).build(db_path)
+        assert second['indexed'] == 0
+        assert second['skipped'] >= 1
+        assert not os.path.exists(db_path + '.tmp')
 
 
 # ---------------------------------------------------------------------------
