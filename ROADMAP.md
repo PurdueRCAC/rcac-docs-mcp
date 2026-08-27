@@ -23,8 +23,24 @@ deferral table in [`AGENTS.md`](AGENTS.md).
 
 ## Queued
 
-*(No seeds yet. The factory landed 2026-08-27; the first deferrals will be
-filed by the cycles that find them.)*
+### `SERVER_INSTRUCTIONS` still tells agents to use prefix wildcards, contradicting the README.
+*`kind: docs` · `appetite: small` · filed 2026-08-27 by the factory port*
+The advice defeats the query normalizer it predates, and it is the copy every
+downstream agent holds as a system prompt. Small, real, and entirely inside the
+surface the factory cares about — the intended first dogfood cycle.
+**Seed:** [`issues/server-instructions-wildcard-drift.md`](issues/server-instructions-wildcard-drift.md)
+
+### `--site` is honored when indexing and silently ignored when serving.
+*`kind: fix` · `appetite: small` · filed 2026-08-27 by the factory port*
+Reproduced. Production is unaffected, because the container relies on
+`RCAC_DOCS_SITE`, which both halves honor.
+**Seed:** [`issues/site-flag-ignored-when-serving.md`](issues/site-flag-ignored-when-serving.md)
+
+### There is no linter, formatter, or type checker.
+*`kind: refactor` · `appetite: small` · filed 2026-08-27 by the factory port*
+Deliberately excluded from the port so its reformatting diff would not swamp
+the port's own. A good first substantial cycle.
+**Seed:** [`issues/static-analysis-gate.md`](issues/static-analysis-gate.md)
 
 <!--
 Entry format:
