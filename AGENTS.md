@@ -213,8 +213,10 @@ when the code moves.
 
 ## Branch posture and commits (Geoffrey's rules)
 
-- **Branch off `main`.** Lifecycle work goes on `feature/{slug}` or
-  `fix/{slug}` and lands on `main` by squash. There is no `wip` branch and no
+- **Branch off `main`.** Lifecycle work goes on `feature/{slug}`, `fix/{slug}`,
+  `docs/{slug}` or `refactor/{slug}` and lands on `main` by squash. Harness
+  work uses `harness/{slug}`. The prefix follows the cycle's `kind:`; the set
+  is open, like the commit categories. There is no `wip` branch and no
   `WIP: ` prefix — both were retired when the factory landed. Never force-push
   `main`.
 - **A merge to `main` is a deploy.** `.github/workflows/build-and-push.yml`

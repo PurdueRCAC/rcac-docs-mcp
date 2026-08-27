@@ -122,8 +122,8 @@ forbidden to open, so a technique recorded there is rediscovered or walked into 
 - **An interpolated pathspec collapses under `zsh`.** `git grep -n PATTERN -- $PATHS`, where `$PATHS`
   holds several paths, searches one nonexistent path and exits clean: `zsh` does not word-split an
   unquoted parameter. Write the paths literally.
-- **Hard-wrapped prose defeats `git grep`.** `README.md`, `AGENTS.md` and `INSTRUCTIONS.md` wrap near
-  80–100 columns, so a unique phrase usually spans two lines and never matches. A gate asserting a
+- **Hard-wrapped prose defeats `git grep`.** `README.md`, `AGENTS.md` and `INSTRUCTIONS.md` wrap
+  near 100 columns, so a unique phrase usually spans two lines and never matches. A gate asserting a
   sentence is gone reads green while the sentence is still there.
 
 ## Severity
