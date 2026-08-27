@@ -27,3 +27,12 @@ ENV/
 .pytest_cache/
 .coverage
 htmlcov/
+
+# The security lane. Unremediated findings and their roadmap stay out of the
+# published history: a public inventory of live weaknesses in an unauthenticated
+# service is an attacker's work plan. Fixes land as ordinary public commits.
+.security/
+
+# Per-session tool grants, accreted one at a time. The committed
+# .agents/settings.json is the shared baseline.
+.agents/settings.local.json

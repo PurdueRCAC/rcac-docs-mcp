@@ -1,0 +1,3 @@
+Keeps spec/ present in a fresh clone. next_phase.py --all errors on a missing
+directory rather than reporting an empty backlog, and several skill state
+injections glob this path at load time.

@@ -1,0 +1,39 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(uv run .agents/factory/bin/*)",
+      "Bash(.agents/factory/bin/lint.sh*)",
+      "Bash(.agents/factory/bin/temp_site.sh*)",
+      "Bash(uv run pytest *)",
+      "Bash(uv run python -c *)",
+      "Bash(uv sync *)",
+      "Bash(uv lock *)",
+      "Bash(sh -n *)",
+      "Bash(git status *)",
+      "Bash(git branch *)",
+      "Bash(git log *)",
+      "Bash(git diff *)",
+      "Bash(git show *)",
+      "Bash(git rev-parse *)",
+      "Bash(git ls-files *)",
+      "Bash(git ls-tree *)",
+      "Bash(git ls-remote *)",
+      "Bash(git cat-file *)",
+      "Bash(git grep *)",
+      "Bash(git fetch *)",
+      "Bash(git tag -l *)",
+      "Bash(git submodule status *)",
+      "Bash(gh repo view *)",
+      "Bash(gh pr status *)",
+      "Bash(gh pr view *)",
+      "Bash(gh run list *)",
+      "Bash(gh run view *)",
+      "Bash(gh release view *)",
+      "Bash(gh release list *)",
+      "Bash(ls *)",
+      "Bash(head *)",
+      "Bash(tail *)",
+      "Bash(mktemp *)"
+    ]
+  }
+}

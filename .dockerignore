@@ -24,9 +24,15 @@ __pycache__/
 # Tests and the (large) RCAC-Docs submodule fixture — not needed to build/run
 tests
 
-# Agent / project meta (not needed in the image)
+# Agent / project meta (not needed in the image). Paths are named individually,
+# so a new top-level directory is covered by nothing — .agents/factory/bin/lint.sh
+# asserts this list stays complete.
 .agents
 .claude
+spec
+issues
+.security
+docs
 AGENTS.md
 CLAUDE.md
 ROADMAP.md
