@@ -1,0 +1,3 @@
+Keeps issues/ present in a fresh clone. Several skill state injections glob
+this path at load time, and an unmatched glob exits non-zero, which aborts the
+whole skill.

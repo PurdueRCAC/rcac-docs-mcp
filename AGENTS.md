@@ -1,8 +1,14 @@
 # AGENTS.md
 
-Guidance for AI agents (and humans) working in this repository. Read this
-first, then the active implementation plan and `ROADMAP.md`. Keep this file
-current as the project evolves.
+Guidance for AI agents (and humans) working in this repository. `CLAUDE.md` is
+a symlink to this file — edit `AGENTS.md`, never a separate copy. (`.claude` is
+likewise a symlink to `.agents`, so Claude Code finds the factory skills and
+settings through it.)
+
+This is the operating manual: the architecture, the load-bearing invariants,
+and the process rules an agent needs to make correct changes here without
+rediscovering them. When something below disagrees with the code, **the code is
+ground truth — fix this file.**
 
 ## What this repo is
 
@@ -20,30 +26,18 @@ The server provides exactly two tools:
 
 This project began as a fork of the broader `rcac-mcp` server (HPC cluster
 operations: Slurm, SFTP, LMOD, plus JWT/OIDC auth and SSH/delegate
-executors). **All of that is being stripped out here.** Cluster operations
-are out of scope and will live in a separate, pluggable `hpc-mcp` project.
-This repo is documentation search **only**.
+executors). **All of that was removed.** Cluster operations are out of scope
+and will live in a separate, pluggable `hpc-mcp` project. This repo is
+documentation search **only**. The refactor that made it so is complete; its
+retained record is [`spec/docs-only-refactor/`](spec/docs-only-refactor/).
 
-## Current state (keep this accurate)
+The server is small, finished, and **deployed**. Its failure modes are quiet:
+a malformed query returns an error an agent cannot act on, a torn index breaks
+live readers mid-query, and a stale sentence in `INSTRUCTIONS.md` is a system
+prompt handed to every downstream client on every call. None of it produces a
+stack trace anyone will see. Prefer deleting to adding.
 
-The repo is mid-refactor on the `wip` branch. The work is tracked stage by
-stage in `ROADMAP.md` and detailed in the linked implementation plan
-(`plan_id` in the ROADMAP frontmatter).
-
-- **Naming:** migrating from package `rcac_mcp` / distribution `rcac-mcp` to
-  package `rcac_docs_mcp` / distribution + script `rcac-docs-mcp`. Until the
-  rename stage lands, the importable package is still `rcac_mcp`.
-- **Layout target:** the indexer (database + markdown pipeline + schema)
-  moves into an `index/` subpackage; the two MCP tools and the tool-registry
-  machinery collapse into a single top-level `tools.py`.
-- **Transports:** `stdio` (local clients) and `http` (hosted). `sse` and all
-  auth modes are being removed.
-- **Expected mid-refactor breakage:** the package is intentionally
-  **non-importable between Stage 1 and the end of Stage 3** (deletions
-  precede the rewire). A red `pytest` during that window is expected and
-  documented — it is green again from Stage 4 on. See `ROADMAP.md`.
-
-## Architecture (target)
+## Architecture
 
 ```
 src/rcac_docs_mcp/
@@ -61,14 +55,26 @@ src/rcac_docs_mcp/
 ```
 
 **Indexing pipeline** (`index/indexer.py`): walk the RCAC-Docs `docs/` tree →
-parse YAML frontmatter → resolve pymdownx `--8<--` snippet includes → render
-Jinja2 macros/templates (from the docs repo's `main.py` + `mkdocs.yml`
-`extra:`) → strip the `<!-- more -->` blog marker → chunk on `##` (H2)
-boundaries → upsert into SQLite with SHA-256 incremental hashing and stale-doc
-pruning.
+parse YAML frontmatter → **render Jinja2 macros/templates** (from the docs
+repo's `main.py` + `mkdocs.yml` `extra:`) → **then resolve pymdownx `--8<--`
+snippet includes**, verbatim and never re-rendered → strip the `<!-- more -->`
+blog marker → chunk on `##` (H2) boundaries → upsert into SQLite with SHA-256
+incremental hashing and stale-doc pruning.
+
+That order is load-bearing and easy to get backwards. It mirrors MkDocs, where
+`mkdocs-macros` renders templates and `pymdownx.snippets` includes files later
+during conversion. Snippet text contains brace sequences that are not
+templates, so handing it to the Jinja parser is a crash.
 
 **Search** (`index/database.py`): FTS5 virtual table with BM25 ranking and
-`snippet()` highlighting; category filtering is a path-prefix match.
+`snippet()` highlighting; category filtering is a path-prefix match. The
+tokenizer is `porter unicode61 remove_diacritics 1`, so `gpu` and `gpus`
+already match and advising callers to add prefix wildcards is wrong.
+
+**Publication** (`index/indexer.py`): a rebuild seeds `<db>.tmp` from the live
+index with `VACUUM INTO`, builds into it, and swaps with `os.replace`. The
+deployed pod shares one PVC between the indexer and the readers, so an
+in-place write is a live outage.
 
 ## Data locations & environment variables
 
@@ -94,39 +100,116 @@ rcac-docs-mcp -t http -H 0.0.0.0 # serve (hosted); default transport is stdio
 or the default); the repo source and index output are always derived from it
 (`<site>/repo` and `<site>/index.db`).
 
-## Document split (load-bearing)
+## Where work is recorded (load-bearing)
 
-- **The implementation plan** (Warp plan, `plan_id` in ROADMAP frontmatter) —
-  *rationale and design*: why each refactor stage exists and what it changes.
-- **`ROADMAP.md`** — *execution tracker*: YAML frontmatter (`current_stage`,
-  `stages_completed`, decisions) plus a checklist per stage. This is the
-  **resume ground truth**.
-- **`AGENTS.md`** — *orientation*: this file. What the repo is and how to work
-  in it.
+`AGENTS.md` is the constitution. Everything else has one home, and the
+boundaries are not a matter of taste:
 
-If `ROADMAP.md` and the plan disagree on what a stage entails, surface the
-discrepancy rather than silently following one. Record progress only in
-`ROADMAP.md`.
+| File | Holds | Written by |
+|------|-------|------------|
+| `spec/{slug}/` | work **actually in flight**, and the retained record after it lands | the lifecycle skills |
+| `spec/{slug}/TECH.md` | the **resume ground truth** — an FSM in YAML frontmatter, mutated only by `.agents/factory/bin/set_phase.py` | `proj-plan`, then `proj-build` |
+| `spec/{slug}/META.md` | **harness/skill feedback only** — "was this the *factory's* fault". Never code follow-ups. | the lifecycle skills |
+| `issues/{slug}.md` | **deferred code work**, pre-shaped from `.agents/factory/templates/ISSUE.md` | whoever defers it |
+| `ROADMAP.md` | the **ordered index** — one entry per issue, `**Seed:**` pointing at the file | whoever defers it |
+| `.security/issues/{slug}.md` + `.security/ROADMAP.md` | the same two, for **unremediated security findings** — gitignored, never published | whoever defers it |
 
-## Workflow skills
+An `issues/{slug}.md` is a *candidate, not a contract*. `/proj-feature`
+promotes it into a `GOAL.md`, and that promotion is where appetite, non-goals
+and the R-IDs get negotiated with a human. Never copy one into a `GOAL.md`
+verbatim.
 
-Two skills under `.agents/skills/` drive the repo (mirrored to `.claude/` via
-symlink; `CLAUDE.md -> AGENTS.md`).
+**A deferral is retired, not kept forever.** When the cycle that adopted a seed
+lands on `main`, `/proj-roadmap` deletes the seed and its `ROADMAP.md` entry:
+`spec/{slug}/` is the retained account and git history holds the file.
 
-> **Both are superseded and awaiting deletion.** They predate the `.agents/`
-> factory and still assume the retired `wip` branch and `WIP: ` prefix, so
-> where they disagree with *Branch posture and commits* above, that section
-> wins. `/continue` is replaced by `/proj-build`, `/release` by
-> `/proj-release`; the descriptions below stand only until those land.
+**The security lane is not optional.** A deferral describing an unremediated
+weakness goes in `.security/`, which is gitignored. This server is
+unauthenticated and on the public internet; a public roadmap of live
+vulnerabilities is an attacker's work plan. The *fixes* land as ordinary public
+commits when they ship — only the standing inventory stays private. When in
+doubt which lane, use `.security/` and ask.
 
-- **`/continue`** — execute the next incomplete `ROADMAP.md` stage: run the
-  checklist, update the tracker, land one `WIP:` commit, run the `pytest`
-  gate. Conservative by default (one stage, then stop); supports
-  `status` / `dry run` / `through N` / `next N` / `stages X..Y` / `bundle`.
-- **`/release`** — ship `wip` to `main`: strip `WIP:` prefixes (scripted
-  rebase), fast-forward merge, optionally bump `pyproject.toml` + tag + cut a
-  GitHub release, then return to `wip` and force-push. The `pytest` suite is
-  the ship gate.
+## Invariants
+
+The curated, enumerated form is
+[`.agents/factory/invariants.md`](.agents/factory/invariants.md), kept **in
+lockstep with this file** — if the two drift, this file wins; if this file and
+the code drift, the code wins and both get fixed. `/proj-review` grades against
+it, so a section left asserting a decision a change reversed turns correct code
+into an auto-CRITICAL finding. Summarized:
+
+**Exactly two tools**, `doc_search(query, category=None)` and `doc_load(path)`,
+both returning a string and never raising — an exception reaches the caller as
+a tool failure it cannot act on. Renaming or re-signaturing one is a contract
+change: every downstream agent holds `INSTRUCTIONS.md` as a system prompt, and
+a rename does not fail loudly, it just stops being called.
+
+**Read-only and unauthenticated.** `doc_load` resolves its argument through the
+database, not the filesystem, so there is no path-traversal surface today. That
+is the property to preserve.
+
+**The site is one directory.** `<site>/repo` and `<site>/index.db`, resolved
+explicit → `$RCAC_DOCS_SITE` → XDG default. There is deliberately no second
+override for the index path.
+
+**The index is published atomically** and rebuilt incrementally by SHA-256,
+with stale documents pruned through the FTS triggers.
+
+**The render pipeline order is Jinja2 before snippets** (see *Architecture*),
+and `mkdocs.yml` is parsed with a loader tolerant of `!ENV`, `!relative` and
+`!!python/name:` tags.
+
+**Every normalized query is valid FTS5**, for every input. A malformed
+caller-written expression is reported, not raised.
+
+**Two transports**, `stdio` and `http`. `sse` and all auth modes were removed
+deliberately.
+
+**The container entrypoint** runs `--update-site` → `--index` → serve under
+`set -eu`, so a failed update or index means the pod never becomes ready.
+`git` is a runtime dependency and `uv.lock` must stay tracked.
+
+## High-risk files
+
+A confirmed defect in any of these forces a human sign-off gate at review:
+`index/indexer.py`, `index/database.py`, `index/schema.sql`, `tools.py`,
+`site.py`, `Dockerfile`, `docker-entrypoint.sh`, and
+`.github/workflows/build-and-push.yml` — the last because a merge to `main` is
+a deploy, and that file decides what reaches production and when.
+
+## Working on this codebase as an agent
+
+**Use the factory for non-trivial work.** A feature, fix or refactor flows
+through the `.agents/` lifecycle, each stage on a branch with artifacts
+committed under `spec/{slug}/`:
+
+**`/proj-feature`** (shape `GOAL.md`, or promote an `issues/{slug}.md`) →
+**`/proj-plan`** (research + `PLAN.md`/`TECH.md`) → **`/proj-build`** (execute
+one phase, verify, commit, stop) → **`/proj-review`** (blind, externally
+verified QA) → **`/proj-publish`** (squash PR to `main`).
+
+[`.agents/factory/methodology.md`](.agents/factory/methodology.md) is the
+*why*; [`.agents/factory/invariants.md`](.agents/factory/invariants.md) is the
+footgun checklist derived from this file. **Ceremony scales to appetite** — a
+one-sentence change skips the lifecycle entirely.
+
+Three operational siblings sit outside it: **`/proj-harness`** applies the
+factory's own self-improvement findings back to `.agents/`, **`/proj-roadmap`**
+retires the seeds whose cycles have landed and keeps `ROADMAP.md` true, and
+**`/proj-release`** cuts a tagged version. `/proj-release` does **not** ship —
+`/proj-publish` does, because a merge to `main` is the deploy.
+
+**Verify by driving the server, not by reading it.** `uv run pytest -q` is
+necessary and not sufficient: with the RCAC-Docs submodule absent it reports
+`76 passed, 31 skipped` and still exits 0. Anything touching the indexer, the
+tools, or the CLI goes through `.agents/factory/bin/temp_site.sh`, which builds
+a throwaway site from the pinned fixture and exits 3 rather than reporting a
+pass it cannot support.
+
+**This file is the map, and it drifts.** For a deep change, re-verify the
+specific invariant against the code before relying on it, and update this file
+when the code moves.
 
 ## Branch posture and commits (Geoffrey's rules)
 

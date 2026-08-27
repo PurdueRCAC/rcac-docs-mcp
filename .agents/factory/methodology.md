@@ -161,7 +161,7 @@ Every `verify:` command should use at least one, and the layers are ordered by h
   version single-source, no feature-scoped spec ids in shipped source, the `.claude`/`CLAUDE.md`
   symlinks, `.dockerignore` completeness, and that every skill's `` !`cmd` `` state injection exits 0.
 - **The suite.** `uv run pytest -q` — 107 tests. **Necessary, not sufficient.** With the RCAC-Docs
-  submodule uninitialized roughly fourteen integration tests skip and the suite still exits 0. A gate
+  submodule uninitialized 31 of the 107 tests skip and the suite still exits 0. A gate
   that only reads the exit status cannot tell a green run from a skipped one, so assert the counts or
   use the layer below.
 - **Behavioral, sandboxed.** `.agents/factory/bin/temp_site.sh` builds a throwaway site from the

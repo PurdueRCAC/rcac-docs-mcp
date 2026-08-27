@@ -102,7 +102,7 @@ here, added by `/proj-harness` — never in `REVIEW.md`, which the next cycle's 
 forbidden to open, so a technique recorded there is rediscovered or walked into again.
 
 - **The skipped-test false green.** `uv run pytest -q` exits 0 with the RCAC-Docs submodule absent,
-  because roughly fourteen integration tests skip. A gate over indexer, tool, or CLI behavior must run
+  because 31 of the 107 tests skip. A gate over indexer, tool, or CLI behavior must run
   through `.agents/factory/bin/temp_site.sh` (which exits 3 instead of passing) or assert the passed
   count. Report the skip count in the verification run.
 - **The tools are `FunctionTool` objects, not functions.** `doc_search("x")` raises
