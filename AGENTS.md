@@ -111,7 +111,13 @@ discrepancy rather than silently following one. Record progress only in
 ## Workflow skills
 
 Two skills under `.agents/skills/` drive the repo (mirrored to `.claude/` via
-symlink; `CLAUDE.md -> AGENTS.md`):
+symlink; `CLAUDE.md -> AGENTS.md`).
+
+> **Both are superseded and awaiting deletion.** They predate the `.agents/`
+> factory and still assume the retired `wip` branch and `WIP: ` prefix, so
+> where they disagree with *Branch posture and commits* above, that section
+> wins. `/continue` is replaced by `/proj-build`, `/release` by
+> `/proj-release`; the descriptions below stand only until those land.
 
 - **`/continue`** — execute the next incomplete `ROADMAP.md` stage: run the
   checklist, update the tracker, land one `WIP:` commit, run the `pytest`
@@ -124,13 +130,26 @@ symlink; `CLAUDE.md -> AGENTS.md`):
 
 ## Branch posture and commits (Geoffrey's rules)
 
-- **Work on `wip`.** Commit often with **`WIP: `**-prefixed messages and
-  descriptive bodies. `wip` is the only branch where force-push is allowed.
-- Never commit to `main` directly from feature work; never force-push `main`.
-- The intent: collapse `WIP:` commits into clean logical commits later
-  (`/release`), fast-forward into `main`, then open a PR.
-- **Co-author trailer on every commit:** a trailing
-  `Co-Authored-By: Oz <oz-agent@warp.dev>` line.
+- **Branch off `main`.** Lifecycle work goes on `feature/{slug}` or
+  `fix/{slug}` and lands on `main` by squash. There is no `wip` branch and no
+  `WIP: ` prefix — both were retired when the factory landed. Never force-push
+  `main`.
+- **A merge to `main` is a deploy.** `.github/workflows/build-and-push.yml`
+  fires on push, moves `ghcr.io/purduercac/rcac-docs-mcp:latest`, and the
+  Geddes poller rolls the pod. Confirm the live endpoint, not just the CI run:
+  the poller has taken over 26 minutes to reconcile, and a green build says
+  nothing about what is being served.
+- **Commit subjects are `[category] Imperative summary`.** Categories in use:
+  `feature`, `fix`, `docs`, `refactor`, `release`, and `harness` (the
+  `.agents/` factory). The set is not closed — coin a lowercase category when
+  one genuinely fits.
+- **Commit messages are short.** Subject at most 72 characters. A body is
+  optional and earns its place the way a comment does: it records a decision,
+  a rejected alternative, or a consequence the diff does not show. It never
+  narrates the diff or lists the files touched. Two or three lines is a normal
+  body; past about fifteen, the commit should have been two commits. The
+  *Prose and comments* rules below apply here too.
+- **No `Co-Authored-By:` trailer** of any kind.
 - The user has aliased `rm` away — prefer `del` for file removals (and
   `git rm` for tracked files).
 
@@ -138,9 +157,12 @@ symlink; `CLAUDE.md -> AGENTS.md`):
 
 - **SPDX headers** on every source file:
   ```python
-  # SPDX-FileCopyrightText: 2025 Purdue RCAC
+  # SPDX-FileCopyrightText: 2025 Purdue University
   # SPDX-License-Identifier: MIT
   ```
+  The holder is `Purdue University`, which is what all 17 existing source
+  files say and what `.agents/factory/bin/lint.sh` enforces. The year is not
+  checked — a file added later is correct as it stands.
 - **Structured import blocks** with section labels, in order: type
   annotations (`from __future__ import annotations`), `# Standard libs`,
   `# External libs`, `# Internal libs`, then `# Public interface` with
@@ -150,6 +172,56 @@ symlink; `CLAUDE.md -> AGENTS.md`):
   docstrings.
 - CLI tools follow the **CmdKit** layout (see `__init__.py`; cf. `hypershell`,
   `tts`).
+
+## Prose and comments
+
+The project's documentation, comments and commit messages have a voice. Keep
+it. Overly verbose prose — the padding, hedging and marketing adjectives that
+generated text tends toward — is a tic that costs a reader's confidence in
+code that is otherwise correct. This server answers questions for other
+agents and for the people who trust them; it has to be taken seriously to be
+used. Match the existing voice.
+
+**Write:**
+
+- Declarative statements. `# Reserved id, exempt from gating.` — not
+  `# This function will check...`.
+- The **why**, not the what. The code says what it does. A comment earns its
+  place by explaining a constraint, a failure mode, or a rejected alternative.
+- Concrete failure modes. "`multi-node` became `multi-node*`, which SQLite
+  rejects with `no such column: node`" beats "this could cause problems."
+- Whole sentences with terminal punctuation, in the style already in the file.
+
+**Do not write:**
+
+- Filler and hedging: "simply", "just", "note that", "it's worth noting",
+  "essentially", "basically".
+- Marketing adjectives: "comprehensive", "robust", "seamless", "powerful",
+  "elegant", "leverage", "utilize". If a property matters, state the
+  measurement.
+- "This ensures that…", "This allows us to…", "In order to…" — usually a
+  sentence that has not decided what it is claiming.
+- Restatements of the adjacent line. A comment that paraphrases the code is
+  worse than none.
+- Emoji, decorative Unicode, or exclamation marks in source, `README.md`, or
+  `INSTRUCTIONS.md`.
+- Bulleted lists where two sentences would do. Tables are for reference
+  material; prose is for reasoning.
+- Symmetry for its own sake — three parallel bullets where only two facts
+  exist.
+
+**Never embed feature-scoped spec ids** (`R1`, `P3`) in `src/rcac_docs_mcp/**`,
+`README.md`, or `INSTRUCTIONS.md`. They restart per feature, live in
+`spec/{slug}/`, and collide across branches. Requirement provenance lives in
+the commit, the PR, and the retained `spec/{slug}/` record;
+`git blame → commit → PR → spec/{slug}/` recovers it when you need it.
+`.agents/factory/bin/lint.sh` enforces this. Referencing stable things is
+fine: real function names, real environment variables, documented FTS5
+behavior.
+
+`INSTRUCTIONS.md` and `SERVER_INSTRUCTIONS` are held as a system prompt by
+every downstream agent. Padding there is not a style question — it is tokens
+spent on every single call, forever.
 
 ## Testing
 
