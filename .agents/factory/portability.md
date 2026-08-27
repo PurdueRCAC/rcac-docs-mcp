@@ -1,0 +1,73 @@
+# Harness portability — running the factory outside Claude Code
+
+The `proj-*` skills are plain markdown plus portable shell (`git`, `uv run`, the
+`.agents/factory/bin` scripts) and are meant to run on **any** agent harness — Claude Code, Warp,
+OpenCode, and open-weight models. A handful of affordances are Claude-Code-specific; each has a
+graceful fallback so the skill still works, at worst with one manual step. This table is the
+compatibility contract — keep it current when a skill gains a new affordance, and every skill links
+here.
+
+## Affordance → fallback
+
+| Claude-Code affordance | What it does | Fallback on another harness |
+|---|---|---|
+| **Frontmatter** (`name`, `description`, `argument-hint`, `allowed-tools`, `disable-model-invocation`) | Skill discovery and least-privilege tool gating | **Harmlessly ignored** — it is YAML, not procedure. The skill **body** is the operating manual. Grant whatever tools your harness needs by its own mechanism; the committed `.agents/settings.json` is the safe baseline of what the skills actually run. |
+| **`` !`cmd` `` injection** under "Current state (injected at load)" | Runs shell at load and pastes the output into context | **Run those commands yourself** as the first action. The listed commands *are* the state — if you see literal `` !`…` `` text, execute it and read the output. |
+| **`$ARGUMENTS`** | The invocation's arguments | Use your harness's argument mechanism, or read them from the user's message. |
+| **`AskUserQuestion`** | Structured multiple-choice to the human | **Ask in plain text and STOP** for the answer. Never guess to dodge the question. |
+| **`Agent` subagent fan-out** (`proj-plan` research, `proj-review` reviewer) | Parallel read-only workers | **Do the work sequentially yourself**, producing the same artifacts (`research/NN-*.md`; the review) — the deliverable is identical either way, so this is not a scope cut. Applies equally when subagents exist but the session disallows them: an agent policy, a cost ceiling or a sandbox restriction blocks fan-out just as a missing tool does. For `proj-review` this weakens *blindness* — compensate by starting a clean context and grading strictly on executed evidence, per the rubric. |
+| **`ReportFindings`** (`proj-review`) | Renders findings in the host UI | **Additive, not load-bearing** — `REVIEW.md` is the durable record. Skip the call; still write `REVIEW.md`. |
+| **`Skill` / `/proj-*` launch** | How a skill starts | Launch by your harness's mechanism; the handoffs ("then run `/proj-plan`") are advisory prose. |
+
+> **Scope the allowlists honestly.** The frontmatter `allowed-tools` and the committed
+> `.agents/settings.json` are accident protection, not a security boundary — `Bash(uv run *)` alone
+> admits arbitrary Python. They exist to stop fat-fingered mutations, which is why `git checkout` (a
+> silent working-tree discard) is deliberately absent, not to confine a determined adversary.
+
+> **An injected command must exit 0.** Claude Code aborts the whole skill when one does not, and
+> renders the failure with that command's own output inside it — so the correct answer arrives
+> looking like a fault, and the skill cannot be run at all until someone edits it. Guard anything
+> whose exit status is not guaranteed by its output: `grep -r` over a directory that does not exist
+> exits 2 while still printing every match, `grep -c` exits 1 on a count of zero, and `ls` of an
+> unmatched glob exits 1 or 2. Empty state is normal state — no adopted seeds, no `META.md`, no
+> commits on the branch, no `.security/` at all in a fresh clone (it is gitignored) — and none of it
+> is a failure. `|| true` keeps both the output and the diagnosis; `|| echo "(unavailable)"` is
+> better where a blank field would read as a fact. `lint.sh` executes every injection and fails on a
+> non-zero exit.
+
+## Already portable — no action
+
+`git`, `gh`, the FSM scripts, `temp_site.sh`, `lint.sh`, file read/edit/grep/glob, and every artifact
+under `spec/{slug}/` and `.agents/`. All lifecycle state lives in **files** (`TECH.md` frontmatter,
+`META.md`), re-read fresh each invocation. Scripts are invoked by repo-relative path, not through a
+Claude-specific variable.
+
+## The Python scripts and `uv`
+
+`next_phase.py`, `set_phase.py`, `run_verify.py` and `meta_status.py` carry **PEP 723 inline
+metadata**, so `uv run .agents/factory/bin/next_phase.py …` resolves their one dependency (PyYAML)
+into a cached ephemeral environment. There is no separate virtualenv to create and nothing to install
+first — and it works from a `git worktree` that has no `.venv`. `meta_status.py` is stdlib-only by
+design: the `META.md` finding format is deliberately not YAML so that appending to it cannot corrupt
+it and reading it needs no dependency.
+
+Without `uv`, run them with any Python 3.11+ that has PyYAML available; the only `uv`-specific part is
+dependency resolution. PyYAML is already a runtime dependency of this project, so a synced `.venv`
+also satisfies them. On a machine with neither, `meta_status.py` still works under bare `python3`.
+
+## Warp and the Oz agent
+
+This is not hypothetical here. The docs-only refactor that produced this server was executed from
+Warp, and the repository still carries that history. When running there, the fallbacks above are the
+live path, not a contingency: run the state commands yourself, ask clarifying questions in plain
+text, and do the `proj-plan` research and the `proj-review` pass sequentially in a deliberately fresh
+context.
+
+## Smaller and open-weight models
+
+The skills deliberately assume less skill than their author, so a weaker model **fails safe** by
+following the guardrails rather than guessing: STOP-and-ask on ambiguity, `[NEEDS CLARIFICATION]`
+markers, the invariant gate, blind evidence-based review, and silence-by-default meta-notes all
+degrade gracefully. When adapting a skill for another harness, keep instructions imperative and
+checkable, and preserve every STOP condition — they are the safety net. Friction you hit doing so is
+itself a meta-note for `/proj-harness` to fix.
