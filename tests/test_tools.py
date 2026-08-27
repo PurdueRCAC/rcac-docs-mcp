@@ -66,11 +66,66 @@ class TestNormalizeQuery:
         query = 'how do I'
         assert _normalize_query(query) == query
 
-    def test_single_char_terms_dropped(self) -> None:
+    def test_standalone_single_char_term_is_kept_unwildcarded(self) -> None:
+        # 'R' and 'C' name real software in this corpus. Dropping them searched
+        # for everything except the subject. A one-character prefix would match
+        # most of the index, so they are searched exactly instead.
         from rcac_docs_mcp.tools import _normalize_query
         result = _normalize_query('R conda environment')
         assert 'R*' not in result
-        assert 'conda*' in result
+        assert result == 'R OR conda* OR environment*'
+
+    def test_single_char_from_splitting_a_word_is_dropped(self) -> None:
+        from rcac_docs_mcp.tools import _normalize_query
+        assert _normalize_query("user's home directory") == 'user* OR home* OR directory*'
+
+    # -- punctuation must not reach FTS5 as part of a term -------------------
+    # Each of these was measured erroring against the live server; the comment
+    # is the error the old whitespace split produced.
+
+    def test_hyphen_is_split_not_carried(self) -> None:
+        # was: 'multi-node*' -> no such column: node
+        from rcac_docs_mcp.tools import _normalize_query
+        assert _normalize_query('multi-node') == 'multi* OR node*'
+
+    def test_hyphenated_identifier(self) -> None:
+        # was: 'a100-40gb*' -> no such column: 40gb
+        from rcac_docs_mcp.tools import _normalize_query
+        assert _normalize_query('a100-40gb') == 'a100* OR 40gb*'
+
+    def test_trailing_question_mark(self) -> None:
+        # was: 'depot?*' -> fts5: syntax error near "?"
+        from rcac_docs_mcp.tools import _normalize_query
+        assert _normalize_query('how do I transfer files to depot?') == \
+            'transfer* OR files* OR depot*'
+
+    def test_plus_signs(self) -> None:
+        # was: 'C++*' -> fts5: syntax error near "+"
+        from rcac_docs_mcp.tools import _normalize_query
+        assert _normalize_query('C++ compiler') == 'C OR compiler*'
+
+    def test_brackets(self) -> None:
+        # was: '(A100)*' -> fts5: syntax error near "*"
+        from rcac_docs_mcp.tools import _normalize_query
+        assert _normalize_query('GPU (A100)') == 'GPU* OR A100*'
+
+    def test_every_normalized_query_is_valid_fts5(self) -> None:
+        """The normalizer's whole job is to be forgiving. Prove it against the
+        real engine rather than against an expected string."""
+        import sqlite3
+        from rcac_docs_mcp.tools import _normalize_query
+        conn = sqlite3.connect(':memory:')
+        conn.execute("CREATE VIRTUAL TABLE t USING fts5(body, tokenize='porter unicode61')")
+        conn.execute("INSERT INTO t VALUES ('run a multi-node mpi job on negishi')")
+        cases = [
+            'multi-node', 'a100-40gb', 'large-memory queue', 'x-11 forwarding',
+            'how do I transfer files to depot?', "user's home directory",
+            'C++ compiler', 'GPU (A100)', 'scratch purge', 'R packages',
+            'depot: quota', 'gpu/cpu ratio', 'e-mail notification',
+        ]
+        for case in cases:
+            normalized = _normalize_query(case)
+            conn.execute('SELECT count(*) FROM t WHERE t MATCH ?', (normalized,)).fetchone()
 
 
 # ---------------------------------------------------------------------------
@@ -150,6 +205,41 @@ class TestDocSearchWithData:
         from rcac_docs_mcp.tools import doc_search
         result = doc_search.fn('conda', category='nonexistent_category')
         assert 'No documentation found' in result
+
+    def test_search_deeper_category_prefix(self) -> None:
+        from rcac_docs_mcp.tools import doc_search
+        result = doc_search.fn('storage', category='userguides/gautschi')
+        assert 'userguides/gautschi' in result
+
+    # -- end to end: queries that used to be hard errors ---------------------
+
+    def test_hyphenated_query_searches(self) -> None:
+        from rcac_docs_mcp.tools import doc_search
+        result = doc_search.fn('multi-node')
+        assert 'Invalid search query' not in result
+        assert 'result(s)' in result or 'No documentation found' in result
+
+    def test_natural_language_question_searches(self) -> None:
+        from rcac_docs_mcp.tools import doc_search
+        result = doc_search.fn('how do I transfer files to depot?')
+        assert 'Invalid search query' not in result
+        assert 'result(s)' in result
+
+    # -- malformed FTS5 the caller wrote themselves --------------------------
+
+    def test_malformed_operator_query_is_reported_not_raised(self) -> None:
+        # An operator is present, so normalization passes the query through
+        # untouched and the engine rejects it. The caller gets the reason and
+        # the fix instead of an exception.
+        from rcac_docs_mcp.tools import doc_search
+        result = doc_search.fn('"unterminated OR gpu')
+        assert 'Invalid search query' in result
+        assert 'plain words' in result
+
+    def test_punctuation_only_query_does_not_raise(self) -> None:
+        from rcac_docs_mcp.tools import doc_search
+        result = doc_search.fn('?!?')
+        assert 'Invalid search query' in result
 
 
 @requires_submodule

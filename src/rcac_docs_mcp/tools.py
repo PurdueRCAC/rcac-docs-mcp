@@ -18,6 +18,7 @@ from typing import Optional, Set, List, Callable, Any
 # Standard libs
 import os
 import re
+import sqlite3
 
 # External libs
 from fastmcp.tools import Tool
@@ -55,11 +56,44 @@ _STOPWORDS: Set[str] = {
 }
 
 
+# Term characters. Everything else is FTS5 operator syntax and must not reach
+# the engine as part of a term — see _query_terms.
+_TERM_CHARS = re.compile(r'[0-9A-Za-z_]+')
+
+
+def _query_terms(query: str) -> List[str]:
+    """Extract the searchable terms from a natural-language query.
+
+    Terms are cut on non-word characters rather than on whitespace, because
+    punctuation is operator syntax to FTS5. Splitting ``multi-node`` on
+    whitespace yields one term, and the wildcard appended below turns it into
+    ``multi-node*``, which SQLite rejects with ``no such column: node`` — a
+    hard error rather than a poor result. The same held for ``a100-40gb``,
+    ``C++``, an apostrophe, and a trailing question mark, so plain questions
+    like "how do I transfer files to depot?" failed outright.
+
+    A word that is itself a single character is kept: ``R`` and ``C`` name
+    real software in this corpus, and dropping them searched for everything
+    except the subject. Single characters that merely fall out of splitting a
+    larger word ("user's" -> "user", "s") are noise and are discarded.
+    """
+    terms: List[str] = []
+    for word in query.split():
+        parts = _TERM_CHARS.findall(word)
+        if not parts:
+            continue
+        if len(parts) > 1 or len(parts[0]) > 1:
+            parts = [part for part in parts if len(part) > 1]
+        terms.extend(part for part in parts if part.lower() not in _STOPWORDS)
+    return terms
+
+
 def _normalize_query(query: str) -> str:
     """Normalize a natural-language query into forgiving FTS5 syntax.
 
     If the query already contains FTS5 operators (OR, AND, NOT, NEAR,
-    quoted phrases, or prefix wildcards), it is returned as-is.
+    quoted phrases, or prefix wildcards), it is returned as-is: the caller
+    has opted into the full query language and we must not rewrite it.
 
     Otherwise, stopwords are stripped and the remaining terms are joined
     with OR and given prefix wildcards so that a query like
@@ -70,15 +104,14 @@ def _normalize_query(query: str) -> str:
     if _FTS5_OPERATORS.search(query):
         return query
 
-    terms = [
-        t for t in query.split()
-        if t.lower() not in _STOPWORDS and len(t) > 1
-    ]
+    terms = _query_terms(query)
 
     if not terms:
         return query
 
-    return ' OR '.join(f'{t}*' for t in terms)
+    # A one-character prefix matches most of the index, so single-character
+    # terms are searched exactly rather than wildcarded.
+    return ' OR '.join(term if len(term) == 1 else f'{term}*' for term in terms)
 
 
 def _get_db_path() -> str:
@@ -111,24 +144,28 @@ def doc_search(query: str, category: Optional[str] = None) -> str:
     with BM25 ranking. Use this tool to find relevant documentation before
     advising users on storage, jobs, software, or any RCAC-specific topic.
 
-    Search strategy — keep queries short and focused:
-    - Use 2-3 key terms, not full sentences: "scratch purge" not
-      "how does the scratch purge policy work on the cluster"
-    - Use OR for synonyms or related terms: "conda OR anaconda"
-    - Use quoted phrases for exact concepts: '"job array"'
-    - Use prefix matching for word variants: "contai*" matches
-      container, containers, containerize, etc.
-
-    Plain natural-language queries are automatically normalized (stopwords
-    removed, terms joined with OR and prefix-matched) so they still work,
-    but targeted queries will produce better-ranked results.
+    Search strategy — plain words are broadened, operators are for precision:
+    - A query with no operator is normalized: stopwords removed, the rest
+      joined with OR and prefix-matched. That is deliberately recall-heavy,
+      so most plain queries fill all 20 result slots.
+    - Any FTS5 operator switches normalization off and the query is passed
+      through verbatim. That is how you narrow:
+        "job array"                  exact phrase (3 hits, against 20 unquoted)
+        gilbreth AND fortress        both terms must appear
+        apptainer AND anvil NOT conda
+        NEAR(scratch purge, 5)
+    - The index is Porter-stemmed, so gpu/gpus and purge/purged/purging
+      already match each other; * is rarely needed.
+    - Punctuation is operator syntax. Write "multi node", or quote the term
+      as "multi-node" to match it exactly.
 
     Args:
         query: The search query string (FTS5 syntax supported).
         category: Optional category filter to narrow results. Matches as a
             prefix, so 'userguides' matches 'userguides/anvil', etc.
             Common categories: 'userguides', 'software', 'datasets',
-            'blog', 'workshops'.
+            'blog', 'workshops'. Deeper prefixes work and are sharper:
+            'userguides/gilbreth' returns that cluster's own pages first.
 
     Returns:
         Formatted search results with document path, title, section heading,
@@ -139,13 +176,25 @@ def doc_search(query: str, category: Optional[str] = None) -> str:
         doc_search("scratch purge")
         doc_search("conda OR anaconda", category="software")
         doc_search("GPU job submission", category="userguides")
+        doc_search("A100", category="userguides/gilbreth")
     """
     if not _db_available():
         return _NO_DB_MESSAGE
 
     normalized = _normalize_query(query)
-    with DocsDatabase(_get_db_path(), read_only=True) as db:
-        results = db.search(normalized, category=category, limit=20)
+    try:
+        with DocsDatabase(_get_db_path(), read_only=True) as db:
+            results = db.search(normalized, category=category, limit=20)
+    except sqlite3.OperationalError as error:
+        # A query the caller wrote in FTS5 syntax can still be malformed, and
+        # normalization deliberately leaves those alone. Hand back the engine's
+        # own words plus the way out; an exception here surfaces to the agent as
+        # a tool failure it cannot act on, and it costs a whole research round.
+        return (
+            f'Invalid search query: {error}. Retry with two or three plain words, or '
+            'fix the FTS5 syntax: balance the quotes, put OR/AND/NOT between terms, '
+            'and use * only at the end of a term.'
+        )
 
     if not results:
         msg = f'No documentation found matching: {query}'

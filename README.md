@@ -112,15 +112,22 @@ and stale-document pruning.
 
 Search uses an FTS5 virtual table with BM25 ranking and `snippet()`
 highlighting; the optional `category` filter is a path-prefix match (e.g.
-`userguides`, `software`, `datasets`, `blog`, `workshops`).
+`userguides`, `software`, `datasets`, `blog`, `workshops`, or a deeper prefix
+such as `userguides/gilbreth`). The table is tokenized `porter unicode61`, so
+`gpu` and `gpus` are the same token.
+
+A query containing no FTS5 operator is normalized before it reaches the engine:
+terms are cut on non-word characters, stopwords are dropped, and the rest are
+OR-joined and prefix-matched. Any operator switches that off and the query runs
+verbatim, which is how a caller narrows.
 
 ## Available Tools
 
 - `doc_search(query, category=None)` — Full-text search over RCAC
-  documentation. Keep queries to 2–3 key terms; use `OR` for synonyms, quoted
-  phrases for exact concepts, and prefix wildcards (`contai*`) for variants.
-  Natural-language queries are auto-normalized. Returns up to 20 BM25-ranked
-  results with path, title, heading, and a matching snippet.
+  documentation. Keep queries to 2–3 key terms. Plain queries are broadened;
+  operators (`"exact phrase"`, `AND`, `NOT`, `NEAR`) are how you narrow.
+  Returns up to 20 BM25-ranked results with path, title, heading, and a
+  matching snippet.
 - `doc_load(path)` — Load the full rendered markdown of a documentation page by
   its relative path (as shown in `doc_search` results).
 
