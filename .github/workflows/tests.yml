@@ -1,0 +1,48 @@
+# SPDX-FileCopyrightText: 2026 Purdue University
+# SPDX-License-Identifier: MIT
+
+name: Tests
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          # The RCAC-Docs fixture gates 31 of the 107 tests. Without it the suite
+          # still exits 0, so a job that skipped the checkout would be a green
+          # run proving less than a third of what it appears to.
+          submodules: true
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Sync dependencies
+        run: uv sync --quiet
+
+      - name: Run the suite
+        # Fail on any skip. The fixture is checked out above, so a skip here means
+        # it did not arrive -- the exact false green this job exists to prevent.
+        run: |
+          uv run pytest -q -rs --no-header | tee /tmp/pytest.out
+          if grep -qE '[0-9]+ skipped' /tmp/pytest.out; then
+            echo "::error::tests were skipped; the RCAC-Docs fixture did not check out" >&2
+            exit 1
+          fi
+
+      - name: Static gate
+        run: .agents/factory/bin/lint.sh --no-net

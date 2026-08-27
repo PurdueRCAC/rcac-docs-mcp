@@ -7,6 +7,17 @@ on:
   push:
     branches:
       - main
+    # None of these reach the image -- .dockerignore excludes every one -- and a
+    # push to main is a deploy: it moves :latest and the Geddes poller rolls the
+    # pod. A harness or spec commit would otherwise restart production to ship a
+    # byte-identical image.
+    paths-ignore:
+      - '.agents/**'
+      - 'spec/**'
+      - 'issues/**'
+      - 'AGENTS.md'
+      - 'CLAUDE.md'
+      - 'ROADMAP.md'
   workflow_dispatch:
 
 # Cancel an in-flight build if newer commits land on the same ref.
