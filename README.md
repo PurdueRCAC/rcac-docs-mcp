@@ -113,13 +113,14 @@ and stale-document pruning.
 Search uses an FTS5 virtual table with BM25 ranking and `snippet()`
 highlighting; the optional `category` filter is a path-prefix match (e.g.
 `userguides`, `software`, `datasets`, `blog`, `workshops`, or a deeper prefix
-such as `userguides/gilbreth`). The table is tokenized `porter unicode61`, so
-`gpu` and `gpus` are the same token.
+such as `userguides/gilbreth`).
 
-A query containing no FTS5 operator is normalized before it reaches the engine:
-terms are cut on non-word characters, stopwords are dropped, and the rest are
-OR-joined and prefix-matched. Any operator switches that off and the query runs
-verbatim, which is how a caller narrows.
+A query with no operator in it is broadened for you: stopwords are dropped and
+the remaining terms are OR-joined and prefix-matched. Terms are cut on non-word
+characters first, so punctuation cannot reach FTS5 as part of a term. Any FTS5
+operator turns normalization off and runs the query verbatim — that is how a
+caller narrows. The index is Porter-stemmed, so `gpu`/`gpus` and
+`purge`/`purged` already match each other and `*` is rarely needed.
 
 ## Available Tools
 

@@ -73,10 +73,17 @@ After finding a relevant result, use `doc_load` to read the full page.
 Tools:
 - doc_search: Search RCAC documentation (user guides, software catalog,
   datasets, blog posts, workshops). Keep queries to 2-3 key terms, not
-  full sentences. Use OR for synonyms ("conda OR anaconda"), quoted
-  phrases for exact concepts ('"job array"'), and prefix wildcards
-  for variants ("contai*"). Natural-language queries are auto-normalized
-  but targeted queries produce better results.
+  full sentences. A query with no operator in it is broadened for you:
+  stopwords are dropped and the remaining terms are OR-joined and
+  prefix-matched, which is recall-heavy enough that most plain queries
+  fill all 20 result slots. Any FTS5 operator turns normalization off and
+  runs the query verbatim. That is how you narrow: "job array" for an
+  exact phrase, gilbreth AND fortress when both terms must appear, NOT to
+  exclude, NEAR(scratch purge, 5) for proximity. The index is
+  Porter-stemmed, so gpu/gpus and purge/purged already match each other
+  and * is rarely needed. Narrow by path with the optional category
+  filter: userguides, software, datasets, blog, workshops, or a deeper
+  prefix such as userguides/gilbreth, which is sharper still.
 - doc_load: Load the full content of a documentation page by its path
   (as shown in doc_search results). Use after identifying a relevant
   document to read it in full.\

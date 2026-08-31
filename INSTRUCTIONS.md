@@ -16,7 +16,7 @@ remaining terms are OR-joined and prefix-matched, which is deliberately
 recall-heavy, so most plain queries fill all 20 result slots.
 
 Reach for an operator when you want precision instead. Any FTS5 operator turns
-the broadening off and runs your query verbatim: `"job array"` for an exact
+normalization off and runs the query verbatim: `"job array"` for an exact
 phrase, `gilbreth AND fortress` when both terms must appear, `NOT` to exclude,
 `NEAR(scratch purge, 5)` for proximity. The index is Porter-stemmed, so
 `gpu`/`gpus` and `purge`/`purged` already match each other and `*` is rarely
