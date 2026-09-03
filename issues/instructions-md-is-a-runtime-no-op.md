@@ -31,11 +31,12 @@ wildcard advice was corrected in `c2c943a`, the fix went to `README.md` and
 `INSTRUCTIONS.md` — the two files the constitution names as the ones that reach
 agents — and `SERVER_INSTRUCTIONS` was left stale. The change deployed, the live
 handshake still served the old advice, and nobody noticed until the endpoint was
-probed directly. `issues/server-instructions-wildcard-drift.md` is the record of
-that instance; this is the reason it happened.
+probed directly. Commit `7f8d98c` is the record of
+that instance (the seed is retired; `git log --diff-filter=D --
+issues/server-instructions-wildcard-drift.md` recovers it); this is the reason
+it happened.
 
-`7f8d98c` (branch `docs/server-instructions-wildcard-drift`, unmerged at time of
-writing) added `tests/test_docs_contract.py`, which now fails if the three
+`7f8d98c` (now on `main`) added `tests/test_docs_contract.py`, which now fails if the three
 copies disagree. That stops the drift from being *silent*. It does not remove
 the copy — it promotes a file nothing reads into one that must be kept in step
 forever, which is the wrong end of the problem to fix.
@@ -91,8 +92,8 @@ agree.
 
 ## Notes
 
-- Related: `issues/server-instructions-wildcard-drift.md` (the instance this
-  explains), `.agents/factory/invariants.md` §12 (the same-commit rule anchored
+- Related: commit `7f8d98c` (the instance this
+  explains; seed retired, see git history), `.agents/factory/invariants.md` §12 (the same-commit rule anchored
   on the wrong file), and `tests/test_docs_contract.py` in `7f8d98c` (the
   mitigation that made the drift loud).
 - `APP_HELP` in `__init__.py` is the fifth file in §12's list. It carries no

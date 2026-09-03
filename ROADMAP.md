@@ -23,13 +23,6 @@ deferral table in [`AGENTS.md`](AGENTS.md).
 
 ## Queued
 
-### `SERVER_INSTRUCTIONS` still tells agents to use prefix wildcards, contradicting the README.
-*`kind: docs` · `appetite: small` · filed 2026-08-27 by the factory port*
-The advice defeats the query normalizer it predates, and it is the copy every
-downstream agent holds as a system prompt. Small, real, and entirely inside the
-surface the factory cares about — the intended first dogfood cycle.
-**Seed:** [`issues/server-instructions-wildcard-drift.md`](issues/server-instructions-wildcard-drift.md)
-
 ### `INSTRUCTIONS.md` ships to nobody, and the constitution says it ships to everybody.
 *`kind: refactor` · `appetite: small` · filed 2026-09-03 by the wildcard-drift cycle*
 Nothing reads it at runtime; `SERVER_INSTRUCTIONS` in `server.py` is what FastMCP
