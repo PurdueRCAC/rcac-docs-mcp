@@ -36,7 +36,6 @@ docs
 AGENTS.md
 CLAUDE.md
 ROADMAP.md
-INSTRUCTIONS.md
 
 # The image builds its own copy
 Dockerfile

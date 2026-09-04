@@ -1,5 +1,5 @@
 ---
-status: unshaped
+status: adopted:instructions-md-is-a-runtime-no-op
 kind: refactor
 appetite: small
 lane: public

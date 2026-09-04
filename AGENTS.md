@@ -33,7 +33,7 @@ retained record is [`spec/docs-only-refactor/`](spec/docs-only-refactor/).
 
 The server is small, finished, and **deployed**. Its failure modes are quiet:
 a malformed query returns an error an agent cannot act on, a torn index breaks
-live readers mid-query, and a stale sentence in `INSTRUCTIONS.md` is a system
+live readers mid-query, and a stale sentence in `SERVER_INSTRUCTIONS` is a system
 prompt handed to every downstream client on every call. None of it produces a
 stack trace anyone will see. Prefer deleting to adding.
 
@@ -142,7 +142,7 @@ into an auto-CRITICAL finding. Summarized:
 **Exactly two tools**, `doc_search(query, category=None)` and `doc_load(path)`,
 both returning a string and never raising — an exception reaches the caller as
 a tool failure it cannot act on. Renaming or re-signaturing one is a contract
-change: every downstream agent holds `INSTRUCTIONS.md` as a system prompt, and
+change: every downstream agent holds `SERVER_INSTRUCTIONS` as a system prompt, and
 a rename does not fail loudly, it just stops being called.
 
 **Read-only and unauthenticated.** `doc_load` resolves its argument through the
@@ -289,14 +289,14 @@ used. Match the existing voice.
 - Restatements of the adjacent line. A comment that paraphrases the code is
   worse than none.
 - Emoji, decorative Unicode, or exclamation marks in source, `README.md`, or
-  `INSTRUCTIONS.md`.
+  `SERVER_INSTRUCTIONS`.
 - Bulleted lists where two sentences would do. Tables are for reference
   material; prose is for reasoning.
 - Symmetry for its own sake — three parallel bullets where only two facts
   exist.
 
-**Never embed feature-scoped spec ids** (`R1`, `P3`) in `src/rcac_docs_mcp/**`,
-`README.md`, or `INSTRUCTIONS.md`. They restart per feature, live in
+**Never embed feature-scoped spec ids** (`R1`, `P3`) in `src/rcac_docs_mcp/**` or
+`README.md`. They restart per feature, live in
 `spec/{slug}/`, and collide across branches. Requirement provenance lives in
 the commit, the PR, and the retained `spec/{slug}/` record;
 `git blame → commit → PR → spec/{slug}/` recovers it when you need it.
@@ -304,7 +304,7 @@ the commit, the PR, and the retained `spec/{slug}/` record;
 fine: real function names, real environment variables, documented FTS5
 behavior.
 
-`INSTRUCTIONS.md` and `SERVER_INSTRUCTIONS` are held as a system prompt by
+`SERVER_INSTRUCTIONS` is held as a system prompt by
 every downstream agent. Padding there is not a style question — it is tokens
 spent on every single call, forever.
 

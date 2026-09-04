@@ -115,7 +115,7 @@ fi
 # with — the check reported clean against a file containing "R1" for exactly that
 # reason.
 ids=$(git grep --untracked -n -E '(^|[^A-Za-z0-9_])[RP][0-9]+([^A-Za-z0-9_]|$)' \
-        -- src README.md INSTRUCTIONS.md || true)
+        -- src README.md || true)
 if [ -n "$ids" ]; then
     fail "feature-scoped spec id in source or user-facing docs: $ids"
 else

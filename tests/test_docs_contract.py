@@ -1,17 +1,18 @@
 # SPDX-FileCopyrightText: 2026 Purdue University
 # SPDX-License-Identifier: MIT
 
-"""Tests that the copies of the search contract have not drifted apart.
+"""Tests that the two copies of the search contract have not drifted apart.
 
-Five places state the tool contract and the same-commit rule says they move
-together, but nothing enforced it: a correction to the wildcard advice landed in
-`README.md` and `INSTRUCTIONS.md` and missed `SERVER_INSTRUCTIONS`, which is the
-only copy an agent ever sees. The two disagreed for four days and no gate
-noticed, because a stale sentence breaks no import and fails no assertion.
+The contract lives in two places — the served `SERVER_INSTRUCTIONS` literal
+and the `README.md` prose describing it — and the same-commit rule says they
+move together, but nothing enforced it: a correction to the wildcard advice
+once landed in the prose copies and missed the literal, which is the only copy
+an agent ever sees. The two disagreed for four days and no gate noticed,
+because a stale sentence breaks no import and fails no assertion.
 
-Grepping for a shared phrase does not work here: all three sources hard-wrap
+Grepping for a shared phrase does not work here: both sources hard-wrap
 their prose, so a sentence is split across lines at different points in each
-one, and two of the three add markdown backticks. Both are erased before
+one, and one of the two adds markdown backticks. Both are erased before
 comparing, which lets the claims below be written once and matched wherever
 they appear.
 """
@@ -48,7 +49,6 @@ def _normalized(text: str) -> str:
 def _sources() -> dict[str, str]:
     return {
         'SERVER_INSTRUCTIONS': SERVER_INSTRUCTIONS,
-        'INSTRUCTIONS.md': (REPO_ROOT / 'INSTRUCTIONS.md').read_text(),
         'README.md': (REPO_ROOT / 'README.md').read_text(),
     }
 

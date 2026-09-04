@@ -27,7 +27,7 @@ review, per [`review-rubric.md`](review-rubric.md):
 
 `doc_search(query, category=None)` and `doc_load(path)`. Adding, renaming, or re-signaturing one is a
 contract change and needs an explicit `GOAL.md` criterion saying why two are not enough. Downstream
-agents hold `INSTRUCTIONS.md` and `SERVER_INSTRUCTIONS` as a system prompt; a silent rename does not
+agents hold `SERVER_INSTRUCTIONS` as a system prompt; a silent rename does not
 fail loudly, it just stops being called.
 
 Both return a **string**. A tool that raises surfaces to the caller as a tool failure it cannot act
@@ -170,12 +170,12 @@ The Python floor is 3.14 and `uv` is the dependency manager.
 - CLI follows the **CmdKit** layout.
 - **The same-commit rule.** A change to the tool surface, the environment contract
   (`RCAC_DOCS_SITE`, `RCAC_DOCS_URL`, `HOST`, `PORT`), the CLI flags, or the site layout updates
-  whichever of these it invalidates, **in the same commit**: `README.md`, `INSTRUCTIONS.md`,
-  `AGENTS.md`, `APP_HELP` in `__init__.py`, and `SERVER_INSTRUCTIONS` in `server.py`. Five places
-  state the same contract, and `INSTRUCTIONS.md` is what ships to every downstream agent.
+  whichever of these it invalidates, **in the same commit**: `README.md`,
+  `AGENTS.md`, `APP_HELP` in `__init__.py`, and `SERVER_INSTRUCTIONS` in `server.py`. Four places
+  state the same contract, and `SERVER_INSTRUCTIONS` is what ships to every downstream agent.
 - **No `Co-Authored-By:` trailer.** `del`, not `rm` (`git rm` for tracked files).
-- **No feature-scoped spec ids** (`R1`, `P3`) in `src/rcac_docs_mcp/**`, `README.md`, or
-  `INSTRUCTIONS.md`. `lint.sh` enforces this.
+- **No feature-scoped spec ids** (`R1`, `P3`) in `src/rcac_docs_mcp/**` or
+  `README.md`. `lint.sh` enforces this.
 - **Prose and comment voice** per `AGENTS.md` § *Prose and comments*.
 
 An edit to *this file* sits inside the graded diff, so it revises the standard and is judged on its

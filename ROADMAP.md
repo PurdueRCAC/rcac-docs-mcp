@@ -25,10 +25,12 @@ deferral table in [`AGENTS.md`](AGENTS.md).
 
 ### `INSTRUCTIONS.md` ships to nobody, and the constitution says it ships to everybody.
 *`kind: refactor` · `appetite: small` · filed 2026-09-03 by the wildcard-drift cycle*
-Nothing reads it at runtime; `SERVER_INSTRUCTIONS` in `server.py` is what FastMCP
-serves. Four places in `AGENTS.md` and `invariants.md` assert the reverse, which
-is why `c2c943a` fixed the wrong two files and deployed stale advice.
-**Seed:** [`issues/instructions-md-is-a-runtime-no-op.md`](issues/instructions-md-is-a-runtime-no-op.md)
+Delete `INSTRUCTIONS.md`; `SERVER_INSTRUCTIONS` in `server.py` stands as the
+only editable source, with the constitution, the contract test, and the
+mechanical references following the deletion. No prompt rewrite, no
+`importlib.resources` path.
+**Seed:** [`issues/instructions-md-is-a-runtime-no-op.md`](issues/instructions-md-is-a-runtime-no-op.md) · **adopted** as
+[`spec/instructions-md-is-a-runtime-no-op/`](spec/instructions-md-is-a-runtime-no-op/GOAL.md)
 
 ### `--site` is honored when indexing and silently ignored when serving.
 *`kind: fix` · `appetite: small` · filed 2026-08-27 by the factory port*
